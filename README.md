@@ -1,55 +1,88 @@
-# RAG Ingestion
+# RAG-Based Document Gap Analysis Pipeline
 
-This project ingests PDFs and documentation-style files into a structured JSON
-representation using `docling`. It intentionally preserves document structure
-so hierarchical chunking can happen later as a separate step.
+An end-to-end pipeline for ingesting, comparing, and analyzing gaps between Business Requirements Documents (BRDs), User Stories, and existing Knowledge Bases using Retrieval-Augmented Generation (RAG).
 
-## Supported inputs
+## 🚀 Features
 
-- `.pdf`
-- `.md`
-- `.html`, `.htm`
-- `.docx`
-- `.adoc`, `.asciidoc`
+- **Document Ingestion**: Uses `docling` to extract structured representations from PDF, DOCX, MD, and more.
+- **Hierarchical Chunking**: Intelligently segments documents into User Stories (US) and Acceptance Criteria (AC).
+- **Vector Search**: Leverages ChromaDB for semantic search and finding relevant context in existing documentation.
+- **LLM Gap Analysis**: Powered by GPT-4o to identify specific gaps, missing requirements, and inconsistencies.
+- **Interactive Dashboard**: A modern React frontend to visualize comparisons, scores, and AI-generated insights.
 
-Plain `.txt` files are also accepted through a tiny fallback path because
-`docling` does not natively convert them.
+## 🛠️ Architecture
 
-You can ingest a single file or a directory of supported files.
+- **Backend**: Python 3.x, FastAPI, ChromaDB, OpenAI API, Docling.
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS.
 
-## Install
+---
 
+## 📦 Getting Started
+
+### 1. Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+- OpenAI API Key
+
+### 2. Backend Setup
+
+1. Create a `.env` file in the root directory:
+   ```env
+   OPENAI_API_KEY=your_key_here
+   LLM_MODEL=gpt-4o
+   ```
+2. Install dependencies:
+   ```bash
+   pip install -e .
+   ```
+3. Run the API:
+   ```bash
+   python -m uvicorn src.rag_api.main:app --reload --port 8000
+   ```
+
+### 3. Frontend Setup
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
+
+---
+
+## 📖 Usage
+
+1. **Upload to Knowledge Base**: Use the "Knowledge Base" tab in the UI to upload existing documentation (e.g., existing BRDs or system specs).
+2. **Analyze New Document**: Upload a new BRD or User Story document on the main dashboard.
+3. **Review Gaps**: The system will automatically find relevant sections in the KB and use the LLM to highlight gaps, providing a side-by-side comparison.
+
+---
+
+## 🏗️ Project Structure
+
+- `src/rag_api/`: FastAPI application and endpoints.
+- `src/rag_ingest/`: Core ingestion, extraction, and vector store logic.
+- `frontend/`: React frontend application.
+- `data/`: Local storage for uploaded files and vector database (gitignored).
+
+---
+
+## 🛠️ Development
+
+### Running Tests
 ```bash
-python3 -m pip install -e '.[dev]'
+pytest tests/
 ```
 
-## Usage
-
-Ingest one file:
-
+### Manual Ingestion CLI
 ```bash
-python3 -m rag_ingest ingest ./docs/guide.md --output ./artifacts/guide.json
+python -m rag_ingest ingest [path_to_file_or_dir] --output [output_path]
 ```
-
-Ingest a directory:
-
-```bash
-python3 -m rag_ingest ingest ./docs --output ./artifacts/corpus.json
-```
-
-Write JSON to stdout:
-
-```bash
-python3 -m rag_ingest ingest ./manual.pdf
-```
-
-## Output shape
-
-Each ingested document includes:
-
-- source metadata
-- normalized text exported from `docling`
-- a hierarchy tree
-
-For `docling`-supported formats, the hierarchy is built from title and section
-items extracted by `docling`. Plain text files are kept as a single body node.
