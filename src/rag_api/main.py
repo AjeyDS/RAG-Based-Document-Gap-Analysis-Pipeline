@@ -18,10 +18,10 @@ from fastapi import FastAPI, File, HTTPException, UploadFile, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from rag_ingest.ingest import Ingestor
-from rag_ingest.extractor import LLMExtractor
-from rag_ingest.chunking import chunk_document
-from rag_ingest.store import VectorStore
+from src.rag_ingest.ingest import Ingestor
+from src.rag_ingest.extractor import LLMExtractor
+from src.rag_ingest.chunking import chunk_document
+from src.rag_ingest.store import VectorStore
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 _ROOT = Path(__file__).resolve().parents[2]

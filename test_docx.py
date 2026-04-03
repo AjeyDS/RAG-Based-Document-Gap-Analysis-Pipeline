@@ -9,7 +9,7 @@ from rag_ingest.ingest import Ingestor
 from rag_ingest.extractor import LLMExtractor
 from rag_ingest.chunking import chunk_document
 
-docx_path = Path("/Users/ajeyds/Projects/RAG/data/uploads/kb/bdc38fa7-a1ab-413d-9923-65754b4723be_Rise User Stories.docx")
+docx_path = Path("/Users/ajeyds/Projects/Doc Gap Analysis/data/uploads/kb/bdc38fa7-a1ab-413d-9923-65754b4723be_Rise User Stories.docx")
 
 if not docx_path.exists():
     print("FILE NOT FOUND")

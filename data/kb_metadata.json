@@ -6,7 +6,23 @@
       "uploadedAt": "2026-03-30T20:35:15.186133+00:00",
       "sizeBytes": 21103,
       "status": "ready",
-      "path": "/Users/ajeyds/Projects/RAG/data/uploads/kb/caa3bcee-0308-48a4-86dd-f3ff960b974f_Rise User Stories.docx"
+      "path": "/Users/ajeyds/Projects/Doc Gap Analysis/data/uploads/kb/caa3bcee-0308-48a4-86dd-f3ff960b974f_Rise User Stories.docx"
+    },
+    "03537315-2ed9-470e-97f6-0e1a93c3b3ce": {
+      "id": "03537315-2ed9-470e-97f6-0e1a93c3b3ce",
+      "filename": "RISE BRD 2.docx",
+      "uploadedAt": "2026-04-02T20:53:48.458503+00:00",
+      "sizeBytes": 52305,
+      "status": "ready",
+      "path": "/Users/ajeyds/Projects/Doc Gap Analysis/data/uploads/kb/03537315-2ed9-470e-97f6-0e1a93c3b3ce_RISE BRD 2.docx"
+    },
+    "b2750661-b836-45f9-90e7-0cf42da5765d": {
+      "id": "b2750661-b836-45f9-90e7-0cf42da5765d",
+      "filename": "v2_UserStories.docx",
+      "uploadedAt": "2026-04-02T21:18:03.970955+00:00",
+      "sizeBytes": 9269,
+      "status": "ready",
+      "path": "/Users/ajeyds/Projects/Doc Gap Analysis/data/uploads/kb/b2750661-b836-45f9-90e7-0cf42da5765d_v2_UserStories.docx"
     }
   }
 }

@@ -65,6 +65,7 @@ class LLMExtractor:
             model=self.model,
             response_format={"type": "json_object"},
             messages=messages,
+            max_tokens=16384,
         )
         raw = response.choices[0].message.content
         return json.loads(raw)

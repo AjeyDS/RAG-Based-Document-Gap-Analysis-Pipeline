@@ -13,7 +13,7 @@ _ROOT = Path(__file__).resolve().parent
 DATA_DIR = _ROOT / "data"
 CHROMA_DIR = DATA_DIR / "chroma_db"
 
-docx_path = Path("/Users/ajeyds/Projects/RAG/data/uploads/kb/bdc38fa7-a1ab-413d-9923-65754b4723be_Rise User Stories.docx")
+docx_path = Path("/Users/ajeyds/Projects/Doc Gap Analysis/data/uploads/kb/bdc38fa7-a1ab-413d-9923-65754b4723be_Rise User Stories.docx")
 
 extractor = LLMExtractor(
     model=os.environ.get("LLM_MODEL", "gpt-4o"),
