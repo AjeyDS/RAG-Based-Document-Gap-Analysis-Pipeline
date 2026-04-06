@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .ingest import Ingestor, dumps
-from .store import DEFAULT_COLLECTION, DEFAULT_EMBED_MODEL, VectorStore
+from .store import DEFAULT_EMBED_MODEL, VectorStore
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,16 +49,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     store_parser = subparsers.add_parser(
-        "store", help="Ingest → LLM extract → chunk → upsert into ChromaDB"
+        "store", help="Ingest → LLM extract → chunk → upsert into pgvector"
     )
     store_parser.add_argument("path", help="File or directory to ingest and store")
     store_parser.add_argument(
-        "--db", default="./chroma_db", help="ChromaDB persist directory (default: ./chroma_db)"
-    )
-    store_parser.add_argument(
-        "--collection",
-        default=DEFAULT_COLLECTION,
-        help=f"Collection name (default: {DEFAULT_COLLECTION})",
+        "--db-url", default=None, help="PostgreSQL connection string (default: from .env)"
     )
     store_parser.add_argument(
         "--model",
@@ -79,12 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     query_parser = subparsers.add_parser("query", help="Semantic search over stored chunks")
     query_parser.add_argument("text", help="Query text")
     query_parser.add_argument(
-        "--db", default="./chroma_db", help="ChromaDB persist directory (default: ./chroma_db)"
-    )
-    query_parser.add_argument(
-        "--collection",
-        default=DEFAULT_COLLECTION,
-        help=f"Collection name (default: {DEFAULT_COLLECTION})",
+        "--db-url", default=None, help="PostgreSQL connection string (default: from .env)"
     )
     query_parser.add_argument(
         "--model",
@@ -116,18 +106,18 @@ def main() -> int:
 
     if args.command == "chunk":
         from .extractor import LLMExtractor
-        from .chunking import chunk_document
+        from .chunking import chunk_for_storage
 
         extractor = LLMExtractor(model=args.llm_model, prompt_path=args.prompt)
         documents = Ingestor(extractor=extractor).ingest(args.path)
         all_chunks = []
         for doc in documents:
             if doc.extracted_json:
-                result = chunk_document(doc.extracted_json)
+                result = chunk_for_storage(doc.extracted_json)
                 all_chunks.append(
                     {
                         "source": doc.source_path,
-                        "document_entry": result["document_entry"],
+                        "story_chunks": result["story_chunks"],
                         "ac_chunks": result["ac_chunks"],
                     }
                 )
@@ -143,13 +133,13 @@ def main() -> int:
 
     if args.command == "store":
         from .extractor import LLMExtractor
-        from .chunking import chunk_document
+        from .chunking import chunk_for_storage
 
         extractor = LLMExtractor(model=args.llm_model, prompt_path=args.prompt)
         documents = Ingestor(extractor=extractor).ingest(args.path)
-        vs = VectorStore(persist_dir=args.db, collection_name=args.collection, embed_model=args.model)
+        vs = VectorStore(db_url=args.db_url, embed_model=args.model)
 
-        total_docs = 0
+        total_stories = 0
         total_ac = 0
         for doc in documents:
             if doc.extracted_json is None:
@@ -157,24 +147,24 @@ def main() -> int:
                     f"WARNING: LLM extraction returned nothing for {doc.source_path}, skipping.\n"
                 )
                 continue
-            chunks_result = chunk_document(doc.extracted_json)
+            chunks_result = chunk_for_storage(doc.extracted_json)
             counts = vs.add_document_chunks(chunks_result, source_path=doc.source_path)
-            total_docs += counts["document_entries"]
+            total_stories += counts["story_chunks"]
             total_ac += counts["ac_chunks"]
             sys.stdout.write(
-                f"Stored 1 document entry + {counts['ac_chunks']} AC chunks"
+                f"Stored {counts['story_chunks']} story chunks + {counts['ac_chunks']} AC chunks"
                 f" from {doc.source_path}\n"
             )
 
         sys.stdout.write(
-            f"Total: {total_docs} document entries, {total_ac} AC chunks."
-            f" Collection size: {vs.count()}\n"
+            f"Total: {total_stories} story chunks, {total_ac} AC chunks."
+            f" Store size: {vs.count()}\n"
         )
         return 0
 
     if args.command == "query":
-        vs = VectorStore(persist_dir=args.db, collection_name=args.collection, embed_model=args.model)
-        hits = vs.query(args.text, n_results=args.n_results)
+        vs = VectorStore(db_url=args.db_url, embed_model=args.model)
+        hits = vs.query_stories(args.text, top_k=args.n_results)
         sys.stdout.write(json.dumps(hits, indent=2, ensure_ascii=True))
         sys.stdout.write("\n")
         return 0

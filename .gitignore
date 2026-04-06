@@ -35,4 +35,5 @@ frontend/.env.development.local
 frontend/.env.test.local
 frontend/.env.production.local
 frontend/.npm-cache/
+.npm-cache/
 frontend/tsconfig.tsbuildinfo

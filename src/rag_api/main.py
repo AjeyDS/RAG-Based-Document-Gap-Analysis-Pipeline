@@ -24,57 +24,58 @@ from src.rag_ingest.chunking import chunk_for_storage
 from src.rag_ingest.store import VectorStore
 
 # ── story-level retrieval ─────────────────────────────────────────────────────
-def find_matching_stories(new_extracted_json: dict, client, top_k: int = 3) -> list[dict]:
-    stories_col = client.get_collection("stories")
-    criteria_col = client.get_collection("criteria")
-    
+def find_matching_stories(new_extracted_json: dict, vs: VectorStore, top_k: int = 3) -> list[dict]:
     results = []
-    for story in new_extracted_json.get("stories", []):
-        query_text = f"{story.get('title', '')} — {story.get('description', '')}"
-        search_results = stories_col.query(query_texts=[query_text], n_results=top_k)
+    stories = new_extracted_json.get("stories", [])
+    if not stories:
+        return []
         
-        if not search_results["ids"] or not search_results["ids"][0]:
+    query_texts = [f"{story.get('title', '')} — {story.get('description', '')}" for story in stories]
+    all_story_matches = vs.query_stories_batch(query_texts, top_k=top_k)
+    
+    for i, story in enumerate(stories):
+        matches = all_story_matches[i]
+        
+        if not matches:
             results.append({"new_story": story, "matched_story": None, "matched_acs": []})
             continue
             
-        best_id = search_results["ids"][0][0]
-        best_metadata = search_results["metadatas"][0][0]
-        best_distance = search_results["distances"][0][0]
-        best_document = search_results["documents"][0][0]
+        best = matches[0]
+        similarity = round(max(0, (1.0 - best["distance"])) * 100, 1)
         
-        similarity = round(max(0, (1.0 - best_distance)) * 100, 1)
-        
-        actual_story_id = best_id.split("::")[-1] if "::" in best_id else best_id
-        ac_results = criteria_col.get(where={"story_id": actual_story_id})
+        # In the new schema, chunk_id is used. 
+        # But for criteria search, we use story_id which is the suffix after scope
+        full_story_id = best["id"] # This is the chunk_id from story
+        actual_story_id = full_story_id.split("::")[-1] if "::" in full_story_id else full_story_id
+        ac_matches = vs.get_criteria_for_story(actual_story_id)
         
         matched_acs = []
-        if ac_results["ids"]:
-            for i, ac_id in enumerate(ac_results["ids"]):
-                matched_acs.append({
-                    "id": ac_results["metadatas"][i].get("ac_id"),
-                    "title": ac_results["metadatas"][i].get("ac_title"),
-                    "criteria": ac_results["documents"][i],
-                })
+        for am in ac_matches:
+            matched_acs.append({
+                "id": am["metadata"].get("ac_id"),
+                "title": am["metadata"].get("ac_title"),
+                "criteria": am["content"],
+            })
                 
-        source_path = best_metadata.get("source", "")
+        source_path = best["metadata"].get("source", best.get("source", ""))
         extracted_filename = Path(source_path).name.split("_", 1)[-1] if "_" in Path(source_path).name else Path(source_path).name
         
         results.append({
             "new_story": story,
             "matched_story": {
-                "id": best_id,
-                "title": best_metadata.get("story_title"),
+                "id": best["id"],
+                "title": best["metadata"].get("story_title"),
                 "document_title": extracted_filename,
                 "similarity": similarity,
-                "description": best_document,
+                "description": best["document"],
             },
             "matched_acs": matched_acs,
         })
     return results
 
 
-def prepare_gap_analysis_inputs(new_extracted_json: dict, client) -> list[dict]:
-    matches = find_matching_stories(new_extracted_json, client)
+def prepare_gap_analysis_inputs(new_extracted_json: dict, vs: VectorStore) -> list[dict]:
+    matches = find_matching_stories(new_extracted_json, vs)
     prompt_inputs = []
     
     for match in matches:
@@ -108,11 +109,9 @@ from gap_analysis_prompt import GAP_ANALYSIS_PROMPT
 
 DATA_DIR = _ROOT / "data"
 UPLOADS_DIR = DATA_DIR / "uploads" / "kb"
-CHROMA_DIR = DATA_DIR / "chroma_db"
 META_FILE = DATA_DIR / "kb_metadata.json"
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 
 _CHUNK_PATTERN = re.compile(r"(\*\*US-\d+\.\d+.*?\*\*|\*\*AC-\d+\.\d+.*?\*\*)")
 
@@ -145,7 +144,10 @@ _vs: VectorStore | None = None
 def _get_vs() -> VectorStore:
     global _vs
     if _vs is None:
-        _vs = VectorStore(persist_dir=CHROMA_DIR)
+        db_url = os.environ.get("DATABASE_URL")
+        if not db_url:
+             raise ValueError("DATABASE_URL not found in .env")
+        _vs = VectorStore(db_url=db_url)
     return _vs
 
 
@@ -288,7 +290,7 @@ async def upload_and_search(file: UploadFile = File(...)):
         }
 
     # Use the new story-level retrieval logic
-    prompt_inputs = prepare_gap_analysis_inputs(doc.extracted_json, vs.client)
+    prompt_inputs = prepare_gap_analysis_inputs(doc.extracted_json, vs)
 
     by_doc: dict[str, dict] = {}
     for pi in prompt_inputs:
