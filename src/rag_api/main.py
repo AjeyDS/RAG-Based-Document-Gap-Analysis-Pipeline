@@ -20,8 +20,85 @@ from pydantic import BaseModel
 
 from src.rag_ingest.ingest import Ingestor
 from src.rag_ingest.extractor import LLMExtractor
-from src.rag_ingest.chunking import chunk_document
+from src.rag_ingest.chunking import chunk_for_storage
 from src.rag_ingest.store import VectorStore
+
+# ── story-level retrieval ─────────────────────────────────────────────────────
+def find_matching_stories(new_extracted_json: dict, client, top_k: int = 3) -> list[dict]:
+    stories_col = client.get_collection("stories")
+    criteria_col = client.get_collection("criteria")
+    
+    results = []
+    for story in new_extracted_json.get("stories", []):
+        query_text = f"{story.get('title', '')} — {story.get('description', '')}"
+        search_results = stories_col.query(query_texts=[query_text], n_results=top_k)
+        
+        if not search_results["ids"] or not search_results["ids"][0]:
+            results.append({"new_story": story, "matched_story": None, "matched_acs": []})
+            continue
+            
+        best_id = search_results["ids"][0][0]
+        best_metadata = search_results["metadatas"][0][0]
+        best_distance = search_results["distances"][0][0]
+        best_document = search_results["documents"][0][0]
+        
+        similarity = round(max(0, (1.0 - best_distance)) * 100, 1)
+        
+        actual_story_id = best_id.split("::")[-1] if "::" in best_id else best_id
+        ac_results = criteria_col.get(where={"story_id": actual_story_id})
+        
+        matched_acs = []
+        if ac_results["ids"]:
+            for i, ac_id in enumerate(ac_results["ids"]):
+                matched_acs.append({
+                    "id": ac_results["metadatas"][i].get("ac_id"),
+                    "title": ac_results["metadatas"][i].get("ac_title"),
+                    "criteria": ac_results["documents"][i],
+                })
+                
+        source_path = best_metadata.get("source", "")
+        extracted_filename = Path(source_path).name.split("_", 1)[-1] if "_" in Path(source_path).name else Path(source_path).name
+        
+        results.append({
+            "new_story": story,
+            "matched_story": {
+                "id": best_id,
+                "title": best_metadata.get("story_title"),
+                "document_title": extracted_filename,
+                "similarity": similarity,
+                "description": best_document,
+            },
+            "matched_acs": matched_acs,
+        })
+    return results
+
+
+def prepare_gap_analysis_inputs(new_extracted_json: dict, client) -> list[dict]:
+    matches = find_matching_stories(new_extracted_json, client)
+    prompt_inputs = []
+    
+    for match in matches:
+        if not match["matched_story"]:
+            prompt_inputs.append({
+                "new_document_title": new_extracted_json.get("document_title", "Uploaded Document"),
+                "existing_document_title": "No match found",
+                "new_story_title": match["new_story"].get("title", ""),
+                "similarity": 0,
+                "new_acceptance_criteria": match["new_story"].get("acceptance_criteria", []),
+                "existing_acceptance_criteria": [],
+            })
+            continue
+            
+        prompt_inputs.append({
+            "new_document_title": new_extracted_json.get("document_title", "Uploaded Document"),
+            "existing_document_title": match["matched_story"]["document_title"],
+            "new_story_title": match["new_story"].get("title", ""),
+            "similarity": match["matched_story"]["similarity"],
+            "new_acceptance_criteria": match["new_story"].get("acceptance_criteria", []),
+            "existing_acceptance_criteria": match["matched_acs"],
+        })
+        
+    return prompt_inputs
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 _ROOT = Path(__file__).resolve().parents[2]
@@ -110,14 +187,20 @@ def _process_upload_task(file_id: str, dest: Path, original_filename: str):
 
     try:
         documents = ingestor.ingest(dest)
+        
+        if file_id not in _load_meta().get("files", {}):
+            return  # abort if deleted early
+            
         for doc in documents:
             if doc.extracted_json is None:
                 raise ValueError(f"LLM extraction produced no JSON for {dest.name}")
             update_progress("chunking")
-            import time; time.sleep(1.5)
-            chunks_result = chunk_document(doc.extracted_json)
+            chunks_result = chunk_for_storage(doc.extracted_json)
             update_progress("embedding")
-            time.sleep(1.5)
+            
+            if file_id not in _load_meta().get("files", {}):
+                return  # abort before writing to vs
+            
             vs.add_document_chunks(chunks_result, source_path=str(dest))
         update_progress("ready")
     except Exception as e:
@@ -161,8 +244,10 @@ def delete_kb_file(file_id: str):
 
     try:
         _get_vs().delete_by_source(entry["path"])
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error during vector db delete for {file_id}: {e}")
+
+
 
     path = Path(entry["path"])
     if path.exists():
@@ -183,7 +268,11 @@ async def upload_and_search(file: UploadFile = File(...)):
         tmp_path = Path(tmp.name)
 
     try:
-        documents = Ingestor().ingest(tmp_path)
+        extractor = LLMExtractor(
+            model=os.environ.get("LLM_MODEL", "gpt-4o"),
+            prompt_path=str(_ROOT / "ingestion_prompt.py"),
+        )
+        documents = Ingestor(extractor=extractor).ingest(tmp_path)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -191,41 +280,53 @@ async def upload_and_search(file: UploadFile = File(...)):
         raise HTTPException(status_code=422, detail="Could not parse document")
 
     doc = documents[0]
-
-    # KB may be empty or document may fail to produce any text.
-    # `doc.chunks` is not populated in this endpoint (chunking is for the KB).
-    if vs.count() == 0 or not doc.text:
+    
+    if vs.count() == 0 or not doc.extracted_json:
         return {
             "document": {"filename": file.filename, "extractedText": doc.text},
             "matches": [],
         }
 
-    # Query KB with the full text; group best-scoring chunk per source
-    hits = vs.query(doc.text[:8000], n_results=min(10, vs.count()))
-    by_source: dict[str, float] = {}
-    for hit in hits:
-        score = 1.0 - hit["distance"]
-        src = hit["source"]
-        if src not in by_source or score > by_source[src]:
-            by_source[src] = score
+    # Use the new story-level retrieval logic
+    prompt_inputs = prepare_gap_analysis_inputs(doc.extracted_json, vs.client)
+
+    by_doc: dict[str, dict] = {}
+    for pi in prompt_inputs:
+        doc_title = pi["existing_document_title"]
+        if doc_title == "No match found":
+            continue
+        if doc_title not in by_doc:
+            by_doc[doc_title] = {"scores": [], "content": []}
+            
+        by_doc[doc_title]["scores"].append(pi["similarity"])
+        
+        # Build structured content string for the frontend and LLM
+        story_text = f"**{pi['new_story_title']}** (Similarity: {pi['similarity']}%)\n"
+        for ac in pi["existing_acceptance_criteria"]:
+            story_text += f"{ac.get('id', '')}: {ac.get('title', '')} — {ac.get('criteria', '')}\n"
+        by_doc[doc_title]["content"].append(story_text)
 
     matches = []
-    for src, score in sorted(by_source.items(), key=lambda x: -x[1])[:3]:
-        chunks = vs.get_chunks_by_source(src)
-        content = "\n\n".join(c["text"] for c in chunks[:15])
+    for doc_title, data in by_doc.items():
+        avg_score = sum(data["scores"]) / len(data["scores"])
         matches.append(
             {
                 "id": str(uuid.uuid4()),
-                "documentId": src,
-                "documentTitle": Path(src).name,
-                "content": content,
-                "similarityScore": round(score, 3),
+                "documentId": doc_title,
+                "documentTitle": doc_title,
+                # Join the contents
+                "content": "\n\n".join(data["content"]),
+                # Frontend expects max 1
+                "similarityScore": round(avg_score / 100.0, 3) 
             }
         )
 
+    # Sort dynamically
+    matches.sort(key=lambda x: -x["similarityScore"])
+
     return {
         "document": {"filename": file.filename, "extractedText": doc.text},
-        "matches": matches,
+        "matches": matches[:3], 
     }
 
 
@@ -307,7 +408,8 @@ def compare_documents(req: CompareRequest):
             new_title = "Uploaded Document"
             existing_title = Path(req.matches[0]["documentTitle"]).name
             
-            acs_to_send = json.dumps(uploaded_chunks, indent=2) if uploaded_chunks else req.uploadedText[:8000]
+            only_acs = [c for c in uploaded_chunks if "AC-" in c["header"]]
+            acs_to_send = json.dumps(only_acs, indent=2) if only_acs else req.uploadedText[:8000]
             
             formatted_prompt = GAP_ANALYSIS_PROMPT.replace(
                 "{new_document_title}", new_title
