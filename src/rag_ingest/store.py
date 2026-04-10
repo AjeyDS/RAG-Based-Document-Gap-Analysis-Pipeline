@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 from typing import Any
 import psycopg2
 import psycopg2.pool
@@ -54,13 +55,13 @@ class VectorStore:
                     cur.execute(f"""
                         CREATE TABLE IF NOT EXISTS document_chunks (
                             id SERIAL PRIMARY KEY,
-                            chunk_id TEXT UNIQUE,
-                            chunk_type TEXT, 
-                            content TEXT,
-                            embedding vector({self.settings.embedding_dimensions}),
-                            story_id TEXT,
-                            metadata JSONB,
-                            source_path TEXT
+                            chunk_id TEXT UNIQUE NOT NULL,
+                            chunk_type TEXT NOT NULL, 
+                            content TEXT NOT NULL,
+                            embedding vector({self.settings.embedding_dimensions}) NOT NULL,
+                            story_id TEXT NOT NULL,
+                            metadata JSONB NOT NULL DEFAULT '{{}}',
+                            source_path TEXT NOT NULL
                         );
                     """)
                     cur.execute(f"""
@@ -75,12 +76,38 @@ class VectorStore:
     def _get_embeddings(self, texts: list[str]) -> list[list[float]]:
         return self.embedding_provider.embed(texts)
 
+    def _validate_chunk(self, chunk_id: str, chunk_type: str, content: str | None, story_id: str | None, metadata: dict | None, source_path: str | None) -> tuple[str, str, dict, str]:
+        if not chunk_type or chunk_type not in ("story", "criteria"):
+            raise ValueError(f"Invalid or null chunk_type: {chunk_type}")
+        if content is None or str(content).strip() == "":
+            content = "NA"
+        if not story_id:
+            raise ValueError(f"story_id cannot be null/empty for chunk {chunk_id}")
+        if metadata is None or not isinstance(metadata, dict):
+            raise ValueError(f"metadata must be a valid JSONB object, got {type(metadata)} for chunk {chunk_id}")
+        if not source_path:
+            raise ValueError(f"source_path cannot be null/empty for chunk {chunk_id}")
+        return content, story_id, metadata, source_path
+
+    def _normalize_source_path(self, source_path: str) -> str:
+        """Normalize path to be relative to the upload directory for cross-environment consistency."""
+        if not source_path:
+            return ""
+        try:
+            normalized = source_path.replace("\\", "/")
+            if "data/uploads/" in normalized:
+                return normalized.split("data/uploads/")[-1]
+            return Path(source_path).name
+        except Exception:
+            return source_path
+
     @db_operation
     def add_document_chunks(
         self,
         chunks_result: dict[str, Any],
         source_path: str = "",
     ) -> dict[str, int]:
+        source_path = self._normalize_source_path(source_path)
         story_chunks = chunks_result.get("story_chunks", [])
         ac_chunks = chunks_result.get("ac_chunks", [])
         
@@ -97,10 +124,14 @@ class VectorStore:
                 with conn.cursor() as cur:
                     # Insert story chunks
                     if story_chunks:
-                        texts = [c["text"] for c in story_chunks]
+                        texts = [c["text"] if c.get("text") is not None else "NA" for c in story_chunks]
                         embeddings = self._get_embeddings(texts)
                         for i, c in enumerate(story_chunks):
-                            scoped_id = f"{source_path}::{c['id']}"
+                            scoped_id = f"{source_path}::{c.get('id', 'NA')}"
+                            content, story_id, meta, src = self._validate_chunk(
+                                scoped_id, "story", c.get("text"), c.get("metadata", {}).get("story_id"), c.get("metadata"), source_path
+                            )
+                            
                             cur.execute("""
                                 INSERT INTO document_chunks (chunk_id, chunk_type, content, embedding, story_id, metadata, source_path)
                                 VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -114,20 +145,24 @@ class VectorStore:
                             """, (
                                 scoped_id,
                                 "story",
-                                c["text"],
+                                content,
                                 embeddings[i],
-                                c["metadata"].get("story_id"),
-                                json.dumps(c["metadata"]),
-                                source_path
+                                story_id,
+                                json.dumps(meta),
+                                src
                             ))
                         counts["story_chunks"] = len(story_chunks)
 
                     # Insert AC chunks
                     if ac_chunks:
-                        texts = [c["text"] for c in ac_chunks]
+                        texts = [c["text"] if c.get("text") is not None else "NA" for c in ac_chunks]
                         embeddings = self._get_embeddings(texts)
                         for i, c in enumerate(ac_chunks):
-                            scoped_id = f"{source_path}::{c['id']}"
+                            scoped_id = f"{source_path}::{c.get('id', 'NA')}"
+                            content, story_id, meta, src = self._validate_chunk(
+                                scoped_id, "criteria", c.get("text"), c.get("metadata", {}).get("story_id"), c.get("metadata"), source_path
+                            )
+                            
                             cur.execute("""
                                 INSERT INTO document_chunks (chunk_id, chunk_type, content, embedding, story_id, metadata, source_path)
                                 VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -141,11 +176,11 @@ class VectorStore:
                             """, (
                                 scoped_id,
                                 "criteria",
-                                c["text"],
+                                content,
                                 embeddings[i],
-                                c["metadata"].get("story_id"),
-                                json.dumps(c["metadata"]),
-                                source_path
+                                story_id,
+                                json.dumps(meta),
+                                src
                             ))
                         counts["ac_chunks"] = len(ac_chunks)
             conn.commit()
@@ -174,12 +209,26 @@ class VectorStore:
             self._pool.putconn(conn)
 
     @db_operation
-    def delete_by_source(self, source_path: str) -> int:
+    def reset_db(self):
+        """Drops and recreates the database schema to apply new constraints during first deploy."""
         conn = self._pool.getconn()
         try:
             with conn:
                 with conn.cursor() as cur:
-                    cur.execute("DELETE FROM document_chunks WHERE source_path = %s;", (source_path,))
+                    cur.execute("DROP TABLE IF EXISTS document_chunks CASCADE;")
+            conn.commit()
+            self._init_db_internal()
+        finally:
+            self._pool.putconn(conn)
+
+    @db_operation
+    def delete_by_source(self, source_path: str) -> int:
+        source_path = self._normalize_source_path(source_path)
+        conn = self._pool.getconn()
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM document_chunks WHERE source_path LIKE %s;", (f"%{source_path}",))
                     deleted = cur.rowcount
             conn.commit()
             return deleted

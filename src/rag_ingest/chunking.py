@@ -4,12 +4,20 @@ Updated Chunking — Story-Level Search
 """
 
 import hashlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def generate_story_id(doc_title: str, story_title: str) -> str:
     """Generate a deterministic unique ID for a story across documents."""
     raw = f"{doc_title}::{story_title}"
     return hashlib.md5(raw.encode()).hexdigest()[:12]
+
+
+def safe_get(data, key, default="NA"):
+    value = data.get(key)
+    return value if value is not None else default
 
 
 def chunk_for_storage(extracted_json: dict) -> dict[str, list[dict]]:
@@ -34,41 +42,44 @@ def chunk_for_storage(extracted_json: dict) -> dict[str, list[dict]]:
         story_metadata = story.get("metadata", {})
         
         # ─── Deterministic story ID ───
-        story_id = generate_story_id(doc_title, story.get("title", ""))
+        story_id = generate_story_id(doc_title, safe_get(story, "title", ""))
         
         # ─── STORY CHUNK (searchable unit) ───
-        story_text = f"{story.get('title', '')} — {story.get('description', '')}"
+        story_text = f"{safe_get(story, 'title', '')} — {safe_get(story, 'description', '')}"
         
         story_chunks.append({
             "id": story_id,
             "text": story_text,
             "metadata": {
-                "document_title": doc_title,
-                "document_summary": doc_summary,
-                "document_type": doc_type,
-                "story_id_original": story.get("id", ""),
-                "story_title": story.get("title", ""),
-                "group": story_metadata.get("group"),
-                "role": story_metadata.get("role"),
+                "story_id": story_id,
+                "role": safe_get(story_metadata, "role"),
+                "group": safe_get(story_metadata, "group"),
+                "doc_epic": safe_get(doc_metadata, "doc_epic"),
                 "ac_count": len(story.get("acceptance_criteria", [])),
-                **{f"doc_{k}": v for k, v in doc_metadata.items()},
+                "story_title": safe_get(story, "title"),
+                "document_type": safe_get(extracted_json, "document_type"),
+                "document_title": safe_get(extracted_json, "document_title"),
+                "document_summary": safe_get(extracted_json, "document_summary"),
+                "doc_application": safe_get(doc_metadata, "doc_application"),
+                "story_description": safe_get(story, "description"),
+                "story_id_original": safe_get(story, "id"),
             },
         })
         
         # ─── AC CHUNKS (linked to parent story) ───
+        if not story_id:
+            logger.warning("Could not determine story_id for AC chunks. Defaulting to 'NA'.")
+            story_id = "NA"
+            
         for ac in story.get("acceptance_criteria", []):
             ac_chunks.append({
-                "id": f"{story_id}_{ac.get('id', '')}",
-                "text": f"{ac.get('title', '')} — {ac.get('criteria', '')}",
+                "id": f"{story_id}_{safe_get(ac, 'id', '')}",
+                "text": f"{safe_get(ac, 'title', '')} — {safe_get(ac, 'criteria', '')}",
                 "metadata": {
-                    "story_id": story_id,           # <-- the link
-                    "document_title": doc_title,
-                    "story_id_original": story.get("id", ""),
-                    "story_title": story.get("title", ""),
-                    "story_description": story.get("description", ""),
-                    "ac_id": ac.get("id", ""),
-                    "ac_title": ac.get("title", ""),
-                    "group": story_metadata.get("group"),
+                    "ac_id": safe_get(ac, "id"),
+                    "ac_title": safe_get(ac, "title"),
+                    "story_id": story_id,
+                    "story_id_original": safe_get(story, "id"),
                 },
             })
     

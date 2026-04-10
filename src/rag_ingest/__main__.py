@@ -90,6 +90,8 @@ def build_parser() -> argparse.ArgumentParser:
         "-n", "--n-results", type=int, default=5, help="Number of results (default: 5)"
     )
 
+    reset_parser = subparsers.add_parser("reset-db", help="Drop and recreate the database schema. Ensure no other connections are running.")
+
     return parser
 
 
@@ -160,6 +162,13 @@ def main() -> int:
         hits = vs.query_stories(args.text, top_k=args.n_results)
         sys.stdout.write(json.dumps(hits, indent=2, ensure_ascii=True))
         sys.stdout.write("\n")
+        return 0
+
+    if args.command == "reset-db":
+        embed_provider = create_embedding_provider(settings)
+        vs = VectorStore(embedding_provider=embed_provider, settings=settings)
+        vs.reset_db()
+        sys.stdout.write("Database reset successfully with NOT NULL formatting schemas initialized.\n")
         return 0
 
     parser.print_help()

@@ -26,14 +26,31 @@ function App() {
     useState<ComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [compareStatus, setCompareStatus] = useState("Docling (Parsing PDF)");
 
   const handleUpload = useCallback(async (file: File) => {
     setError(null);
     setPhase("comparing");
+    setCompareStatus("Docling (Parsing PDF)");
+
+    const steps = [
+      "Docling (Parsing PDF)",
+      "LLM (Extracting entities)",
+      "Searching knowledge base",
+    ];
+    let stepIndex = 0;
+    const interval = setInterval(() => {
+      stepIndex = Math.min(stepIndex + 1, steps.length - 1);
+      setCompareStatus(steps[stepIndex]);
+    }, 2500);
+
     try {
       const { document, matches: searchMatches } = await uploadAndSearch(file);
       setUploadedDocument(document);
       setMatches(searchMatches);
+      
+      setCompareStatus("LLM (Generating Gap Analysis)");
+      
       const result = await compareDocuments(
         document.extractedText,
         searchMatches,
@@ -44,6 +61,8 @@ function App() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setPhase("upload");
+    } finally {
+      clearInterval(interval);
     }
   }, []);
 
@@ -143,7 +162,7 @@ function App() {
               <PdfUpload
                 onUpload={handleUpload}
                 isLoading
-                status="Searching knowledge base..."
+                status={compareStatus}
               />
             </div>
           )}

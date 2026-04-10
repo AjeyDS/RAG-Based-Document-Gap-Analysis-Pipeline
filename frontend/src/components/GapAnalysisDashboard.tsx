@@ -332,7 +332,7 @@ export default function GapAnalysisDashboard({ data }: { data: any }) {
   ];
 
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", maxWidth: 800 }}>
+    <div style={{ fontFamily: "system-ui, sans-serif", width: "100%" }}>
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px" }}>
