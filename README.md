@@ -1,88 +1,22 @@
-# RAG-Based Document Gap Analysis Pipeline
+# Doc Gap Analysis
 
-An end-to-end pipeline for ingesting, comparing, and analyzing gaps between Business Requirements Documents (BRDs), User Stories, and existing Knowledge Bases using Retrieval-Augmented Generation (RAG).
+The Doc Gap Analysis system is an advanced automated requirement constraint pipeline evaluating document disparities leveraging modern RAG principles securely. It natively ingests disparate client documentation artifacts, logically slices hierarchical constraint maps using state-of-the-art LLMs, and flags structural project requirement gaps executing contextually aware similarity engine pipelines iteratively.
 
-## 🚀 Features
+**Tech Stack**: Python | FastAPI | PostgreSQL / pgvector | OpenAI | React / Vite | Docker
 
-- **Document Ingestion**: Uses `docling` to extract structured representations from PDF, DOCX, MD, and more.
-- **Hierarchical Chunking**: Intelligently segments documents into User Stories (US) and Acceptance Criteria (AC).
-- **Vector Search**: Leverages ChromaDB for semantic search and finding relevant context in existing documentation.
-- **LLM Gap Analysis**: Powered by GPT-4o to identify specific gaps, missing requirements, and inconsistencies.
-- **Interactive Dashboard**: A modern React frontend to visualize comparisons, scores, and AI-generated insights.
+## Quick Start
 
-## 🛠️ Architecture
+Operating the internal pipeline locally effectively relies directly upon nested containers:
+1. Copy configuration keys: `cp .env.example .env`
+2. Inject valid `OPENAI_API_KEY` internally mapped natively against `.env`.
+3. Read the detailed [Setup Documentation](docs/SETUP.md) and natively spin logic routing `make up`.
 
-- **Backend**: Python 3.x, FastAPI, ChromaDB, OpenAI API, Docling.
-- **Frontend**: React, TypeScript, Vite, Tailwind CSS.
+## Documentation
 
----
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Setup & Deployment Guide](docs/SETUP.md)
+- [Development Guide](docs/DEVELOPMENT.md)
 
-## 📦 Getting Started
+## License
 
-### 1. Prerequisites
-
-- Python 3.10+
-- Node.js 18+
-- OpenAI API Key
-
-### 2. Backend Setup
-
-1. Create a `.env` file in the root directory:
-   ```env
-   OPENAI_API_KEY=your_key_here
-   LLM_MODEL=gpt-4o
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -e .
-   ```
-3. Run the API:
-   ```bash
-   python -m uvicorn src.rag_api.main:app --reload --port 8000
-   ```
-
-### 3. Frontend Setup
-
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Run the development server:
-   ```bash
-   npm run dev
-   ```
-
----
-
-## 📖 Usage
-
-1. **Upload to Knowledge Base**: Use the "Knowledge Base" tab in the UI to upload existing documentation (e.g., existing BRDs or system specs).
-2. **Analyze New Document**: Upload a new BRD or User Story document on the main dashboard.
-3. **Review Gaps**: The system will automatically find relevant sections in the KB and use the LLM to highlight gaps, providing a side-by-side comparison.
-
----
-
-## 🏗️ Project Structure
-
-- `src/rag_api/`: FastAPI application and endpoints.
-- `src/rag_ingest/`: Core ingestion, extraction, and vector store logic.
-- `frontend/`: React frontend application.
-- `data/`: Local storage for uploaded files and vector database (gitignored).
-
----
-
-## 🛠️ Development
-
-### Running Tests
-```bash
-pytest tests/
-```
-
-### Manual Ingestion CLI
-```bash
-python -m rag_ingest ingest [path_to_file_or_dir] --output [output_path]
-```
+This software relies inherently on an overarching open-source MIT authorization natively enabling unconstrained extensions mapping boundaries continuously.

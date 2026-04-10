@@ -1,74 +1,81 @@
+"""Store module for Document Gap Analysis pipeline."""
 from __future__ import annotations
 
-import os
 import json
-from pathlib import Path
+import time
 from typing import Any
 import psycopg2
-from psycopg2 import pool
+import psycopg2.pool
 from pgvector.psycopg2 import register_vector
-from openai import OpenAI
+from src.config import Config
+from src.rag_ingest.llm.base import EmbeddingProvider
+from src.rag_ingest.exceptions import StorageError
+import logging
+from functools import wraps
+logger = logging.getLogger(__name__)
 
-DEFAULT_EMBED_MODEL = "text-embedding-3-small"
+def db_operation(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except psycopg2.OperationalError as e:
+            logger.error("Database connection failed, check PG_HOST and credentials")
+            raise StorageError("Database connection failed") from e
+        except psycopg2.Error as e:
+            raise StorageError(f"Database operation failed: {e}") from e
+    return wrapper
 
 class VectorStore:
     def __init__(
         self,
-        db_url: str | None = None,
-        openai_api_key: str | None = None,
-        embed_model: str = DEFAULT_EMBED_MODEL,
+        embedding_provider: EmbeddingProvider,
+        settings: Config,
     ) -> None:
-        self.db_url = db_url or os.environ.get("DATABASE_URL")
-        if not self.db_url:
-            raise ValueError("DATABASE_URL not found in environment.")
+        self.settings = settings
+        self.embedding_provider = embedding_provider
+        self.db_url = f"postgresql://{settings.pg_user}:{settings.pg_password}@{settings.pg_host}:{settings.pg_port}/{settings.pg_database}"
         
-        api_key = openai_api_key or os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY required.")
-            
-        self.openai_client = OpenAI(api_key=api_key)
-        self.embed_model = embed_model
-        
-        # Initialize connection pool
-        self._pool = psycopg2.pool.ThreadedConnectionPool(1, 10, self.db_url)
-        self._init_db()
+        try:
+            self._pool = psycopg2.pool.ThreadedConnectionPool(settings.pg_pool_min, settings.pg_pool_max, self.db_url)
+            self._init_db_internal()
+        except psycopg2.OperationalError as e:
+            logger.error("Database connection failed, check PG_HOST and credentials")
+            raise StorageError("Database connection failed") from e
+        except psycopg2.Error as e:
+            raise StorageError(f"Storage initialization failed: {e}") from e
 
-    def _init_db(self):
+    def _init_db_internal(self):
         conn = self._pool.getconn()
         try:
             with conn:
                 with conn.cursor() as cur:
                     cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-                    cur.execute("""
+                    cur.execute(f"""
                         CREATE TABLE IF NOT EXISTS document_chunks (
                             id SERIAL PRIMARY KEY,
                             chunk_id TEXT UNIQUE,
                             chunk_type TEXT, 
                             content TEXT,
-                            embedding vector(1536),
+                            embedding vector({self.settings.embedding_dimensions}),
                             story_id TEXT,
                             metadata JSONB,
                             source_path TEXT
                         );
                     """)
-                    cur.execute("""
+                    cur.execute(f"""
                         CREATE INDEX IF NOT EXISTS idx_chunks_embedding 
                         ON document_chunks USING ivfflat (embedding vector_cosine_ops) 
-                        WITH (lists = 100);
+                        WITH (lists = {self.settings.ivfflat_lists});
                     """)
             conn.commit()
         finally:
             self._pool.putconn(conn)
 
     def _get_embeddings(self, texts: list[str]) -> list[list[float]]:
-        if not texts:
-            return []
-        response = self.openai_client.embeddings.create(
-            input=texts,
-            model=self.embed_model
-        )
-        return [e.embedding for e in response.data]
+        return self.embedding_provider.embed(texts)
 
+    @db_operation
     def add_document_chunks(
         self,
         chunks_result: dict[str, Any],
@@ -76,6 +83,10 @@ class VectorStore:
     ) -> dict[str, int]:
         story_chunks = chunks_result.get("story_chunks", [])
         ac_chunks = chunks_result.get("ac_chunks", [])
+        
+        if not story_chunks and not ac_chunks:
+            logger.warning("No document chunks provided to add_document_chunks.")
+            return {"story_chunks": 0, "ac_chunks": 0}
         
         counts = {"story_chunks": 0, "ac_chunks": 0}
         
@@ -141,8 +152,18 @@ class VectorStore:
         finally:
             self._pool.putconn(conn)
 
+        logger.info(
+            "Document chunks upserted",
+            extra={
+                "story_chunk_count": len(story_chunks),
+                "ac_chunk_count": len(ac_chunks),
+                "source_path": source_path
+            }
+        )
+        
         return counts
 
+    @db_operation
     def count(self) -> int:
         conn = self._pool.getconn()
         try:
@@ -152,6 +173,7 @@ class VectorStore:
         finally:
             self._pool.putconn(conn)
 
+    @db_operation
     def delete_by_source(self, source_path: str) -> int:
         conn = self._pool.getconn()
         try:
@@ -164,7 +186,7 @@ class VectorStore:
         finally:
             self._pool.putconn(conn)
 
-    # Helper for similarity search used by API
+    @db_operation
     def query_stories_batch(self, query_texts: list[str], top_k: int = 3) -> list[list[dict]]:
         if not query_texts:
             return []
@@ -175,6 +197,7 @@ class VectorStore:
         
         batch_results = []
         try:
+            start_time = time.time()
             with conn.cursor() as cur:
                 for embedding in embeddings:
                     cur.execute("""
@@ -195,6 +218,16 @@ class VectorStore:
                             "source": r[4]
                         })
                     batch_results.append(results)
+                    
+            duration = time.time() - start_time
+            logger.debug(
+                "Queried stories batch",
+                extra={
+                    "query_text_preview": query_texts[0][:100] if query_texts else "",
+                    "result_count": sum(len(res) for res in batch_results),
+                    "latency_ms": round(duration * 1000, 2)
+                }
+            )
             return batch_results
         finally:
             self._pool.putconn(conn)
@@ -204,6 +237,7 @@ class VectorStore:
         results = self.query_stories_batch([query_text], top_k=top_k)
         return results[0] if results else []
 
+    @db_operation
     def get_criteria_for_story(self, story_id: str) -> list[dict]:
         conn = self._pool.getconn()
         try:

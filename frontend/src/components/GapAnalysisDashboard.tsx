@@ -273,7 +273,12 @@ function FilterBar({ activeFilter, onFilterChange, summary }: { activeFilter: st
 export default function GapAnalysisDashboard({ data }: { data: any }) {
   const [activeFilter, setActiveFilter] = useState("all");
 
-  const { comparisons, overall_summary: summary } = data;
+  const summary = data.overall_summary || {};
+  // Safety net: strictly filter out non-AC comparisons
+  const comparisons = useMemo(() => {
+    const allComps = data.comparisons || [];
+    return allComps.filter((c: any) => c.new_ac_id && c.new_ac_id.includes("AC-"));
+  }, [data.comparisons]);
 
   /* Group comparisons by story (using metadata from comparisons) */
   const stories = useMemo(() => {

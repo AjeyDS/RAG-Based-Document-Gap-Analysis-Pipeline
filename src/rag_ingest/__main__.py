@@ -1,3 +1,4 @@
+"""Main Entrypoint module for Document Gap Analysis pipeline."""
 from __future__ import annotations
 
 import argparse
@@ -7,10 +8,14 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv()  # noqa: E402
 
 from .ingest import Ingestor, dumps
-from .store import DEFAULT_EMBED_MODEL, VectorStore
+from .store import VectorStore
+from src.config import settings
+from src.rag_ingest.llm import create_llm, create_embedding_provider
+from src.rag_ingest.pipeline import IngestionPipeline
+from src.logging_config import setup_logging
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -57,8 +62,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     store_parser.add_argument(
         "--model",
-        default=DEFAULT_EMBED_MODEL,
-        help=f"OpenAI embedding model (default: {DEFAULT_EMBED_MODEL})",
+        default=settings.embedding_model,
+        help=f"OpenAI embedding model (default: {settings.embedding_model})",
     )
     store_parser.add_argument(
         "--prompt",
@@ -78,8 +83,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     query_parser.add_argument(
         "--model",
-        default=DEFAULT_EMBED_MODEL,
-        help=f"OpenAI embedding model (default: {DEFAULT_EMBED_MODEL})",
+        default=settings.embedding_model,
+        help=f"OpenAI embedding model (default: {settings.embedding_model})",
     )
     query_parser.add_argument(
         "-n", "--n-results", type=int, default=5, help="Number of results (default: 5)"
@@ -89,11 +94,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    setup_logging()
     parser = build_parser()
     args = parser.parse_args()
 
     if args.command == "ingest":
-        documents = Ingestor().ingest(args.path)
+        pipeline = IngestionPipeline(ingestor=Ingestor())
+        documents = pipeline.run_partial(args.path, through="ingest")
         payload = dumps(documents)
         if args.output:
             output_path = Path(args.output).expanduser().resolve()
@@ -106,21 +113,10 @@ def main() -> int:
 
     if args.command == "chunk":
         from .extractor import LLMExtractor
-        from .chunking import chunk_for_storage
-
-        extractor = LLMExtractor(model=args.llm_model, prompt_path=args.prompt)
-        documents = Ingestor(extractor=extractor).ingest(args.path)
-        all_chunks = []
-        for doc in documents:
-            if doc.extracted_json:
-                result = chunk_for_storage(doc.extracted_json)
-                all_chunks.append(
-                    {
-                        "source": doc.source_path,
-                        "story_chunks": result["story_chunks"],
-                        "ac_chunks": result["ac_chunks"],
-                    }
-                )
+        llm = create_llm(settings)
+        extractor = LLMExtractor(llm_provider=llm, prompt_name=args.prompt)
+        pipeline = IngestionPipeline(ingestor=Ingestor(), extractor=extractor)
+        all_chunks = pipeline.run_partial(args.path, through="chunk")
         payload = json.dumps(all_chunks, indent=2, ensure_ascii=True)
         if args.output:
             output_path = Path(args.output).expanduser().resolve()
@@ -133,37 +129,34 @@ def main() -> int:
 
     if args.command == "store":
         from .extractor import LLMExtractor
-        from .chunking import chunk_for_storage
-
-        extractor = LLMExtractor(model=args.llm_model, prompt_path=args.prompt)
-        documents = Ingestor(extractor=extractor).ingest(args.path)
-        vs = VectorStore(db_url=args.db_url, embed_model=args.model)
+        llm = create_llm(settings)
+        embed_provider = create_embedding_provider(settings)
+        extractor = LLMExtractor(llm_provider=llm, prompt_name=args.prompt)
+        vs = VectorStore(embedding_provider=embed_provider, settings=settings)
+        
+        pipeline = IngestionPipeline(ingestor=Ingestor(), extractor=extractor, store=vs)
+        results = pipeline.run_partial(args.path, through="store")
 
         total_stories = 0
         total_ac = 0
-        for doc in documents:
-            if doc.extracted_json is None:
-                sys.stderr.write(
-                    f"WARNING: LLM extraction returned nothing for {doc.source_path}, skipping.\n"
-                )
-                continue
-            chunks_result = chunk_for_storage(doc.extracted_json)
-            counts = vs.add_document_chunks(chunks_result, source_path=doc.source_path)
+        for res in results:
+            counts = res["counts"]
             total_stories += counts["story_chunks"]
             total_ac += counts["ac_chunks"]
             sys.stdout.write(
-                f"Stored {counts['story_chunks']} story chunks + {counts['ac_chunks']} AC chunks"
-                f" from {doc.source_path}\n"
+                f"Stored {counts['story_chunks']} story chunks + {counts['ac_chunks']} AC chunks "
+                f"from {res['source']}\n"
             )
 
         sys.stdout.write(
-            f"Total: {total_stories} story chunks, {total_ac} AC chunks."
-            f" Store size: {vs.count()}\n"
+            f"Total: {total_stories} story chunks, {total_ac} AC chunks. "
+            f"Store size: {vs.count()}\n"
         )
         return 0
 
     if args.command == "query":
-        vs = VectorStore(db_url=args.db_url, embed_model=args.model)
+        embed_provider = create_embedding_provider(settings)
+        vs = VectorStore(embedding_provider=embed_provider, settings=settings)
         hits = vs.query_stories(args.text, top_k=args.n_results)
         sys.stdout.write(json.dumps(hits, indent=2, ensure_ascii=True))
         sys.stdout.write("\n")

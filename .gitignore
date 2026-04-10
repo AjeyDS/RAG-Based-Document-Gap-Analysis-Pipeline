@@ -37,3 +37,10 @@ frontend/.env.production.local
 frontend/.npm-cache/
 .npm-cache/
 frontend/tsconfig.tsbuildinfo
+
+# Tool Caches
+.ruff_cache/
+
+# Application Data
+data/uploads/
+*.egg-info/

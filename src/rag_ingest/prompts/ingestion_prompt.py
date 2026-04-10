@@ -1,4 +1,5 @@
-You are a document intelligence engine. You read raw markdown of any requirements document 
+"""Ingestion Prompt module for Document Gap Analysis pipeline."""
+INGESTION_PROMPT = """You are a document intelligence engine. You read raw markdown of any requirements document 
 (BRD, SRS, PRD, FRD, user stories, or any format) and return a single structured JSON object.
  
 ## RULES

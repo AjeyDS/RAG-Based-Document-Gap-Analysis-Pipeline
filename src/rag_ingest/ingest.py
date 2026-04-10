@@ -1,3 +1,4 @@
+"""Ingest module for Document Gap Analysis pipeline."""
 from __future__ import annotations
 
 import json
@@ -77,7 +78,8 @@ class Ingestor:
 
     def _convert_with_docling(self, path: Path):
         self.progress_cb("docling")
-        import time; time.sleep(1.5)
+        import time
+        time.sleep(1.5)
         return self.converter.convert(str(path))
 
     def _build_document_from_conversion(self, path: Path, result) -> IngestedDocument:
@@ -106,7 +108,8 @@ class Ingestor:
         )
         if self.extractor:
             self.progress_cb("llm")
-            import time; time.sleep(1.5)
+            import time
+            time.sleep(1.5)
             doc.extracted_json = self.extractor.extract(markdown)
         return doc
 

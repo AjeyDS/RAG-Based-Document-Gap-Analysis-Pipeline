@@ -1,3 +1,4 @@
+"""Gap Analysis Prompt module for Document Gap Analysis pipeline."""
 GAP_ANALYSIS_PROMPT = """You are a requirements gap analysis engine. You compare acceptance criteria from a NEW document 
 against acceptance criteria from an EXISTING document in the knowledge base, and produce a detailed 
 gap analysis for each criterion.
@@ -6,6 +7,8 @@ gap analysis for each criterion.
 
 1. For EACH acceptance criterion in the NEW document, find the closest matching criterion in the 
    EXISTING document and assign a verdict.
+   IMPORTANT: Compare ONLY acceptance criteria. Do NOT generate comparisons for user story titles or descriptions.
+   User stories are organizational containers — only their acceptance criteria should be analyzed.
 
 2. Verdicts:
    - "covered": The existing document already satisfies this requirement. The criteria are semantically 

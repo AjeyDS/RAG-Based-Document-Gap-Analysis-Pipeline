@@ -321,7 +321,8 @@ export async function uploadAndSearch(
 
 export async function compareDocuments(
   uploadedText: string,
-  matches: KnowledgeBaseMatch[]
+  matches: KnowledgeBaseMatch[],
+  extractedJson?: any
 ): Promise<ComparisonResult> {
   if (USE_MOCK) {
     await mockDelay(400);
@@ -331,7 +332,7 @@ export async function compareDocuments(
   const response = await fetch(`${API_BASE}/api/documents/compare`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ uploadedText, matches }),
+    body: JSON.stringify({ uploadedText, matches, extractedJson }),
   });
   if (!response.ok) throw new Error("Compare failed");
   return response.json();

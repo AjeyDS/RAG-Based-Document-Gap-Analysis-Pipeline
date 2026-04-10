@@ -36,7 +36,8 @@ function App() {
       setMatches(searchMatches);
       const result = await compareDocuments(
         document.extractedText,
-        searchMatches
+        searchMatches,
+        document.extractedJson
       );
       setComparisonResult(result);
       setPhase("results");

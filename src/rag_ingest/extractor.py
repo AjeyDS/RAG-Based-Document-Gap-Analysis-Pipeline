@@ -1,12 +1,14 @@
+"""Extractor module for Document Gap Analysis pipeline."""
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
 
-from openai import OpenAI
+import logging
+from src.rag_ingest.llm.base import LLMProvider
+from src.rag_ingest.prompts import load_prompt, INGESTION_PROMPT
+from src.rag_ingest.exceptions import LLMExtractionError
 
-DEFAULT_MODEL = "gpt-4o"
+logger = logging.getLogger(__name__)
 
 
 class LLMExtractor:
@@ -14,35 +16,14 @@ class LLMExtractor:
 
     def __init__(
         self,
-        api_key: str | None = None,
-        model: str = DEFAULT_MODEL,
-        prompt_path: str | Path | None = None,
+        llm_provider: LLMProvider,
+        prompt_name: str | None = INGESTION_PROMPT,
     ) -> None:
-        resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
-        if not resolved_key:
-            raise ValueError(
-                "OpenAI API key required. Pass api_key= or set OPENAI_API_KEY."
-            )
-        self.client = OpenAI(api_key=resolved_key)
-        self.model = model
-        self.system_prompt = self._load_prompt(prompt_path)
+        self.llm_provider = llm_provider
+        self.system_prompt = self._load_prompt(prompt_name or INGESTION_PROMPT)
 
-    def _load_prompt(self, prompt_path: str | Path | None) -> str:
-        if prompt_path:
-            return Path(prompt_path).expanduser().resolve().read_text(encoding="utf-8")
-        # Default: look for ingestion_prompt.py in cwd, then walk up to find it.
-        # (Also support the legacy prompt.txt name.)
-        for candidate in [
-            Path.cwd() / "ingestion_prompt.py",
-            Path(__file__).parent.parent.parent / "ingestion_prompt.py",
-            Path.cwd() / "prompt.txt",
-            Path(__file__).parent.parent.parent / "prompt.txt",
-        ]:
-            if candidate.exists():
-                return candidate.read_text(encoding="utf-8")
-        raise FileNotFoundError(
-            "Prompt file not found. Pass prompt_path= or place ingestion_prompt.py (or legacy prompt.txt) in the project root."
-        )
+    def _load_prompt(self, prompt_name: str) -> str:
+        return load_prompt(prompt_name)
 
     def extract(self, markdown_text: str) -> dict:
         """Send markdown to GPT-4o and return parsed JSON schema."""
@@ -54,18 +35,21 @@ class LLMExtractor:
                 "{markdown_content}",
                 markdown_text,
             )
-            messages = [{"role": "system", "content": system_prompt}]
         else:
-            messages = [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": markdown_text},
-            ]
+            system_prompt = self.system_prompt
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            response_format={"type": "json_object"},
-            messages=messages,
-            max_tokens=16384,
-        )
-        raw = response.choices[0].message.content
-        return json.loads(raw)
+        raw_response = self.llm_provider.complete(system_prompt, markdown_text)
+        try:
+            parsed = json.loads(raw_response)
+        except json.JSONDecodeError:
+            logger.error(f"Raw response: {raw_response[:500]}")
+            raise LLMExtractionError("Failed to parse LLM response as JSON")
+
+        for key in ["document_title", "stories"]:
+            if key not in parsed:
+                raise LLMExtractionError(f"LLM response missing required field: {key}")
+
+        if not parsed.get("stories"):
+            logger.warning("LLM response contains an empty stories list.")
+
+        return parsed

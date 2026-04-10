@@ -1,6 +1,7 @@
 export interface UploadedDocument {
   filename: string;
   extractedText: string;
+  extractedJson?: any;
 }
 
 export interface KnowledgeBaseFile {

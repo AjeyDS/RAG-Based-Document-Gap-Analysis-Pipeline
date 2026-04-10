@@ -1,3 +1,4 @@
+"""Models module for Document Gap Analysis pipeline."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
