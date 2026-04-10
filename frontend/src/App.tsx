@@ -13,11 +13,14 @@ import {
   RotateCcw,
   PanelLeftClose,
   PanelLeftOpen,
+  LogOut,
 } from "lucide-react";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { Login } from "./components/Login";
 
 type Phase = "upload" | "comparing" | "results";
 
-function App() {
+function AppInner() {
   const [phase, setPhase] = useState<Phase>("upload");
   const [uploadedDocument, setUploadedDocument] =
     useState<UploadedDocument | null>(null);
@@ -27,6 +30,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [compareStatus, setCompareStatus] = useState("Docling (Parsing PDF)");
+
+  const { isAuthenticated, isLoading, user, logout } = useAuth();
 
   const handleUpload = useCallback(async (file: File) => {
     setError(null);
@@ -74,6 +79,17 @@ function App() {
     setError(null);
   }, []);
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500 font-medium">Loading session...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -106,17 +122,38 @@ function App() {
               </div>
             </div>
           </div>
-          {phase === "results" && (
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex flex-col items-end mr-2">
+              <span className="text-sm font-medium text-gray-900 leading-none">
+                Logged in as: {user?.username}
+              </span>
+              <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold mt-1">
+                ({user?.role})
+              </span>
+            </div>
+            
+            {phase === "results" && (
+              <button
+                type="button"
+                onClick={handleReset}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                aria-label="Compare another document"
+              >
+                <RotateCcw className="w-4 h-4" />
+                New comparison
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={handleReset}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
-              aria-label="Compare another document"
+              onClick={logout}
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+              aria-label="Logout"
             >
-              <RotateCcw className="w-4 h-4" />
-              New comparison
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Logout</span>
             </button>
-          )}
+          </div>
         </div>
       </header>
 
@@ -199,4 +236,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
+  );
+}

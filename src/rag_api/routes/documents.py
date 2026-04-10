@@ -12,7 +12,7 @@ import logging
 from fastapi import APIRouter, File, HTTPException, UploadFile, Depends, Request
 from pydantic import BaseModel
 
-from src.rag_api.dependencies import get_vector_store, get_settings, get_pipeline, get_llm
+from src.rag_api.dependencies import get_vector_store, get_settings, get_pipeline, get_llm, get_current_user
 from src.rag_ingest.store import VectorStore
 from src.rag_ingest.pipeline import IngestionPipeline
 
@@ -106,7 +106,8 @@ async def upload_and_search(
     request: Request,
     file: UploadFile = File(...),
     vs: VectorStore = Depends(get_vector_store),
-    pipeline: IngestionPipeline = Depends(get_pipeline)
+    pipeline: IngestionPipeline = Depends(get_pipeline),
+    user: dict = Depends(get_current_user)
 ):
     logger.info("Handling request", extra={"path": request.url.path, "method": request.method, "upload_filename": file.filename})
     suffix = Path(file.filename).suffix
@@ -176,7 +177,8 @@ def compare_documents(
     request: Request,
     req: CompareRequest,
     settings=Depends(get_settings),
-    llm=Depends(get_llm)
+    llm=Depends(get_llm),
+    user: dict = Depends(get_current_user)
 ):
     logger.info("Handling request", extra={"path": request.url.path, "method": request.method})
     segments = _CHUNK_PATTERN.split(req.uploadedText)

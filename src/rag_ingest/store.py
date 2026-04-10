@@ -69,6 +69,25 @@ class VectorStore:
                         ON document_chunks USING ivfflat (embedding vector_cosine_ops) 
                         WITH (lists = {self.settings.ivfflat_lists});
                     """)
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS users (
+                            id SERIAL PRIMARY KEY,
+                            user_id TEXT NOT NULL UNIQUE,
+                            username TEXT NOT NULL UNIQUE,
+                            password_hash TEXT NOT NULL,
+                            role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+                            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                        );
+                    """)
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS sessions (
+                            id SERIAL PRIMARY KEY,
+                            token TEXT NOT NULL UNIQUE,
+                            user_id TEXT NOT NULL REFERENCES users(user_id),
+                            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                            expires_at TIMESTAMP NOT NULL
+                        );
+                    """)
             conn.commit()
         finally:
             self._pool.putconn(conn)

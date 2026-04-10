@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, BackgroundTasks,
 import logging
 
 from src.rag_api.services.metadata import load_meta, save_meta, UPLOADS_DIR
-from src.rag_api.dependencies import get_vector_store, get_pipeline
+from src.rag_api.dependencies import get_vector_store, get_pipeline, get_current_user, require_admin
 from src.rag_ingest.store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def _process_upload_task(file_id: str, dest: Path, original_filename: str):
         print(f"[KB upload] ERROR for {dest.name}: {e}")
 
 @router.get("")
-def list_kb_files(request: Request):
+def list_kb_files(request: Request, user: dict = Depends(get_current_user)):
     logger.info("Handling request", extra={"path": request.url.path, "method": request.method})
     meta = load_meta()
     return [
@@ -42,7 +42,8 @@ def list_kb_files(request: Request):
 async def upload_kb_files(
     request: Request,
     background_tasks: BackgroundTasks, 
-    files: list[UploadFile] = File(...)
+    files: list[UploadFile] = File(...),
+    user: dict = Depends(require_admin)
 ):
     filenames = [f.filename for f in files]
     logger.info("Handling request", extra={"path": request.url.path, "method": request.method, "upload_filename": str(filenames)})
@@ -74,7 +75,7 @@ async def upload_kb_files(
     return results
 
 @router.delete("/{file_id}", status_code=204)
-def delete_kb_file(request: Request, file_id: str, vs: VectorStore = Depends(get_vector_store)):
+def delete_kb_file(request: Request, file_id: str, vs: VectorStore = Depends(get_vector_store), user: dict = Depends(require_admin)):
     logger.info("Handling request", extra={"path": request.url.path, "method": request.method})
     meta = load_meta()
     entry = meta.get("files", {}).get(file_id)

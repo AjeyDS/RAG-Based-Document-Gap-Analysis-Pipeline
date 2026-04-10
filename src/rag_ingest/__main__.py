@@ -92,6 +92,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     reset_parser = subparsers.add_parser("reset-db", help="Drop and recreate the database schema. Ensure no other connections are running.")
 
+    seed_parser = subparsers.add_parser("seed-users", help="Pre-seed default users.")
+
     return parser
 
 
@@ -169,6 +171,11 @@ def main() -> int:
         vs = VectorStore(embedding_provider=embed_provider, settings=settings)
         vs.reset_db()
         sys.stdout.write("Database reset successfully with NOT NULL formatting schemas initialized.\n")
+        return 0
+
+    if args.command == "seed-users":
+        from src.rag_api.seed_users import seed_users
+        seed_users()
         return 0
 
     parser.print_help()

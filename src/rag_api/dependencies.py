@@ -9,6 +9,8 @@ from src.rag_ingest.extractor import LLMExtractor
 from src.rag_ingest.pipeline import IngestionPipeline
 from src.rag_ingest.ingest import Ingestor
 from src.rag_ingest.prompts import INGESTION_PROMPT
+from fastapi import Request, HTTPException, Depends
+from src.rag_api.auth import validate_session
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -34,3 +36,18 @@ def get_pipeline() -> IngestionPipeline:
     )
     ingestor = Ingestor()
     return IngestionPipeline(ingestor=ingestor, extractor=extractor, store=vs)
+
+def get_current_user(request: Request) -> dict:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = auth_header.split(" ")[1]
+    user = validate_session(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user

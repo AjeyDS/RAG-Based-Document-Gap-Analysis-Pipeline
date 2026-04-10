@@ -13,6 +13,7 @@ import {
   removeKnowledgeBaseFile,
   uploadKnowledgeBaseFiles,
 } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -59,6 +60,8 @@ const getFileIconColor = (filename: string) => {
 };
 
 export function KnowledgeBaseManager() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [files, setFiles] = useState<KnowledgeBaseFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -130,27 +133,29 @@ export function KnowledgeBaseManager() {
           </span>
         </div>
         
-        <label
-          className={`
-            inline-flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-gray-800 bg-[#F5F4F1] border border-[#E8E6E1] rounded-lg cursor-pointer hover:bg-[#EBEAE6] transition-colors
-            ${isUploading ? "opacity-70 pointer-events-none" : ""}
-          `}
-        >
-          <input
-            type="file"
-            accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            multiple
-            onChange={handleUpload}
-            disabled={isUploading}
-            className="sr-only"
-          />
-          {isUploading ? (
-            <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
-          ) : (
-            <Plus className="w-4 h-4 text-gray-600" strokeWidth={2} />
-          )}
-          {isUploading ? "Uploading & indexing..." : "Add files"}
-        </label>
+        {isAdmin && (
+          <label
+            className={`
+              inline-flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-gray-800 bg-[#F5F4F1] border border-[#E8E6E1] rounded-lg cursor-pointer hover:bg-[#EBEAE6] transition-colors
+              ${isUploading ? "opacity-70 pointer-events-none" : ""}
+            `}
+          >
+            <input
+              type="file"
+              accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              multiple
+              onChange={handleUpload}
+              disabled={isUploading}
+              className="sr-only"
+            />
+            {isUploading ? (
+              <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
+            ) : (
+              <Plus className="w-4 h-4 text-gray-600" strokeWidth={2} />
+            )}
+            {isUploading ? "Uploading & indexing..." : "Add files"}
+          </label>
+        )}
       </div>
 
       {error && (
@@ -195,19 +200,21 @@ export function KnowledgeBaseManager() {
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0 ml-4">
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(file.id)}
-                    disabled={removingId === file.id}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
-                    aria-label={`Remove ${file.filename}`}
-                  >
-                    {removingId === file.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-red-500" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(file.id)}
+                      disabled={removingId === file.id}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
+                      aria-label={`Remove ${file.filename}`}
+                    >
+                      {removingId === file.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
                   <StatusBadge status={file.status} />
                 </div>
               </li>
