@@ -267,6 +267,7 @@ class VectorStore:
         try:
             start_time = time.time()
             with conn.cursor() as cur:
+                cur.execute("SET ivfflat.probes = %s;", (self.settings.ivfflat_lists,))
                 for embedding in embeddings:
                     cur.execute("""
                         SELECT chunk_id, content, embedding <=> %s::vector AS distance, metadata, source_path
@@ -320,5 +321,59 @@ class VectorStore:
                     {"id": r[0], "content": r[1], "metadata": r[2]}
                     for r in rows
                 ]
+        finally:
+            self._pool.putconn(conn)
+
+    @db_operation
+    def get_story_metadata(self, story_id: str) -> dict | None:
+        """Return the metadata dict of the story chunk for story_id, or None if not found."""
+        conn = self._pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT metadata FROM document_chunks WHERE story_id = %s AND chunk_type = 'story' LIMIT 1;",
+                    (story_id,),
+                )
+                row = cur.fetchone()
+                return row[0] if row else None
+        finally:
+            self._pool.putconn(conn)
+
+    @db_operation
+    def query_all_chunks(self, query_text: str, top_k: int = 5) -> list[dict]:
+        """Embed query_text and return the top_k most similar chunks across all chunk types.
+
+        Returns a list of dicts with keys: id, document, distance, metadata, source, chunk_type.
+        """
+        if not query_text:
+            return []
+            
+        embeddings = self._get_embeddings([query_text])
+        embedding = embeddings[0]
+        conn = self._pool.getconn()
+        register_vector(conn)
+        
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SET ivfflat.probes = %s;", (self.settings.ivfflat_lists,))
+                cur.execute("""
+                    SELECT chunk_id, content, embedding <=> %s::vector AS distance, metadata, source_path, chunk_type, story_id
+                    FROM document_chunks
+                    ORDER BY distance ASC
+                    LIMIT %s;
+                """, (embedding, top_k))
+                rows = cur.fetchall()
+                results = []
+                for r in rows:
+                    results.append({
+                        "id": r[0],
+                        "document": r[1],
+                        "distance": r[2],
+                        "metadata": r[3],
+                        "source": r[4],
+                        "chunk_type": r[5],
+                        "story_id": r[6],
+                    })
+            return results
         finally:
             self._pool.putconn(conn)

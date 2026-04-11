@@ -408,3 +408,39 @@ export async function generateGapContent(
   const data = await response.json();
   return data.content as string;
 }
+
+interface ChatSource {
+  story_title: string;
+  ac_title: string;
+  content: string;
+  document_title: string;
+  similarity_score: number;
+  chunk_type: string;
+}
+
+export async function chatWithKB(message: string): Promise<{ answer: string; sources: ChatSource[] }> {
+  if (USE_MOCK) {
+    await mockDelay(1000);
+    return {
+      answer: "This is a mock answer based on the knowledge base context.",
+      sources: [
+        {
+          story_title: "Mock Story Title",
+          ac_title: "Mock AC Title",
+          content: "Mock chunk content...",
+          document_title: "Mock Document Title",
+          similarity_score: 0.95,
+          chunk_type: "story"
+        }
+      ]
+    };
+  }
+
+  const response = await authFetch(`${API_BASE}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  if (!response.ok) throw new Error("Chat request failed");
+  return response.json();
+}

@@ -16,6 +16,14 @@ To rapidly spin up the application utilizing standard containers, simply execute
 3. `make up`
 
 *Wait a moment for PostgreSQL to initialize pgvector constraints natively.*
+*(Note: the docker-entrypoint automatically runs `seed_users` on startup)*
+
+**Default Credentials:**
+- admin1/admin1pass (ADM-001, admin)
+- admin2/admin2pass (ADM-002, admin)
+- user1/user1pass (USR-001, user)
+- user2/user2pass (USR-002, user)
+*(Change these credentials for production deployment)*
 
 ## Local Development Setup
 
@@ -49,6 +57,31 @@ If not using the nested Compose Docker DB, natively install PostgreSQL 16 global
 | `EMBEDDING_MODEL`| No | `text-embedding-3-small`| String-to-Vector target mapping model heavily required |
 | `LOG_FORMAT` | No | `json` | Centralized formatter setting (`json` or `text`) |
 
+## Adding Users
+
+Use `src/rag_api/add_user.py` to add users without modifying the seed script.
+
+**Inside Docker:**
+```bash
+docker exec -it docgapanalysis-backend-1 python -m src.rag_api.add_user \
+  --user-id USR003 --username newuser --password s3cur3pass --role user
+```
+
+**Local dev** (override `PG_HOST` since `.env` points to the Docker internal hostname):
+```bash
+PG_HOST=localhost PG_PORT=5433 python -m src.rag_api.add_user \
+  --user-id USR003 --username newuser --password s3cur3pass --role user
+```
+
+| Parameter | Required | Values |
+|-----------|----------|--------|
+| `--user-id` | Yes | Unique ID, e.g. `USR003`, `ADM003` |
+| `--username` | Yes | Login username |
+| `--password` | Yes | Plaintext (stored as bcrypt hash) |
+| `--role` | No | `user` (default) or `admin` |
+
+> Note: `PG_PORT=5433` is needed locally because the Docker DB is remapped to avoid conflict with a local PostgreSQL instance on 5432. Adjust if your setup differs.
+
 ## Verification Logic
 
 Validate backend API listener behaviors naturally directly firing curl logic executing internally:
@@ -62,5 +95,13 @@ curl http://localhost:8000/api/knowledge-base
 ```bash
 curl -X POST http://localhost:8000/api/documents/compare \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your_token>" \
   -d '{"uploadedText": "Testing doc...", "matches": []}'
+```
+
+**Evaluate Auth / Login Login Logic:**
+```bash
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin1","password":"admin1pass"}'
 ```

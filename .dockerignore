@@ -1,8 +1,13 @@
 __pycache__/
+**/__pycache__/
 *.pyc
+**/*.pyc
 .git/
 .env
 node_modules/
 .venv/
 data/uploads/
 *.egg-info/
+tests/
+docs/
+frontend/

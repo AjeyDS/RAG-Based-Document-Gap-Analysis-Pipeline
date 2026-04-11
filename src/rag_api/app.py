@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from src.logging_config import setup_logging
-from src.rag_api.routes import knowledge_base, documents, gaps, auth
+from src.rag_api.routes import knowledge_base, documents, gaps, auth, chat
 from src.rag_ingest.exceptions import (
     DocumentParsingError,
     LLMExtractionError,
@@ -59,3 +59,4 @@ app.include_router(knowledge_base.router)
 app.include_router(documents.router)
 app.include_router(gaps.router)
 app.include_router(auth.router)
+app.include_router(chat.router)

@@ -14,8 +14,8 @@ export function Login() {
 
     try {
       await login(username, password);
-    } catch (err: any) {
-      setError(err.message || 'Invalid username or password');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid username or password');
     }
   };
 

@@ -53,6 +53,41 @@ flowchart TD
 
 ## Data Flows
 
+**Table: `users`**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL | Primary sequence key for the table. |
+| `user_id` | TEXT | Unique UUID representing the user. (UNIQUE constraint) |
+| `username` | TEXT | Unique login name. |
+| `password_hash` | TEXT | Bcrypt hashed password. |
+| `role` | TEXT | User permission level (`admin` or `user`). |
+| `created_at` | TIMESTAMP | Record creation date. |
+
+**Table: `sessions`**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL | Primary sequence key for the table. |
+| `token` | TEXT | Unique session authentication token. (UNIQUE constraint) |
+| `user_id` | TEXT | Foreign key linking to the user. |
+| `created_at` | TIMESTAMP | Session creation date. |
+| `expires_at` | TIMESTAMP | Session expiration date. |
+
+## API Endpoints
+
+- `POST /api/auth/login`: Authenticate and receive session token.
+- `POST /api/auth/logout`: Revoke session token.
+- `GET /api/auth/me`: Get current authenticated user context.
+- `GET /api/knowledge-base`: List knowledge base documents.
+- `POST /api/knowledge-base/upload`: Ingest new KB document.
+- `DELETE /api/knowledge-base/{fileId}`: Remove KB document.
+- `POST /api/documents/upload`: Parse and extract target document (pre-comparison).
+- `POST /api/documents/compare`: Full RAG comparison executing map insights.
+- `POST /api/chat`: Query the knowledge base conversationally.
+
+## Data Flows
+
 ### KB Upload Flow
 1. **User triggers upload**: A file is uploaded via `/api/knowledge-base/upload`.
 2. **Metadata initialization**: Status starts internally as `processing`. A UUID is assigned.
@@ -71,3 +106,10 @@ flowchart TD
 5. **Criteria Joins**: Bound AC elements nested underneath matched stories are gathered directly via queries.
 6. **Comparison Engine**: The localized uploaded features mapped heavily against the known features pass into the `Gap Analysis LLM`.
 7. **Verdict Execution**: Results generate `match_type` values and actionable insights pointing clearly to lacking structural AC constraints.
+
+### Chat Knowledge Base Flow
+1. **User Request**: Conversational question -> `POST /api/chat`.
+2. **Vector Retrieval**: Question is embedded -> vector search across all chunk types (`story` and `criteria`).
+3. **Context Truncation**: Top 5 best textual snippet hits combined.
+4. **LLM Execution**: System bounds instructions prompting context explicitly -> formatted payload mapped to `LLM`.
+5. **Result Dispatch**: Extracted generated answer and mapped source document similarities returned to UI.

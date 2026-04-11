@@ -8,12 +8,14 @@ import type {
 import GapAnalysisDashboard from "./components/GapAnalysisDashboard";
 import { KnowledgeBaseManager } from "./components/KnowledgeBaseManager";
 import { PdfUpload } from "./components/PdfUpload";
+import { ChatPanel } from "./components/ChatPanel";
 import {
   FileText,
   RotateCcw,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
+  MessageSquare,
 } from "lucide-react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Login } from "./components/Login";
@@ -29,6 +31,7 @@ function AppInner() {
     useState<ComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
   const [compareStatus, setCompareStatus] = useState("Docling (Parsing PDF)");
 
   const { isAuthenticated, isLoading, user, logout } = useAuth();
@@ -146,7 +149,17 @@ function AppInner() {
 
             <button
               type="button"
-              onClick={logout}
+              onClick={() => setChatOpen(!chatOpen)}
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              aria-label="Chat with KB"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">Ask KB</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { handleReset(); logout(); }}
               className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
               aria-label="Logout"
             >
@@ -231,6 +244,12 @@ function AppInner() {
             </div>
           )}
         </main>
+        
+        {chatOpen && (
+          <aside className="w-[380px] shrink-0 border-l border-gray-200 bg-white overflow-hidden p-4">
+            <ChatPanel onClose={() => setChatOpen(false)} />
+          </aside>
+        )}
       </div>
     </div>
   );
