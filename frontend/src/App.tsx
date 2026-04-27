@@ -153,11 +153,18 @@ function AppInner() {
             <button
               type="button"
               onClick={() => setChatOpen(!chatOpen)}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-              aria-label="Chat with KB"
+              className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
+                chatOpen
+                  ? "text-white bg-blue-600 border-blue-600 hover:bg-blue-700"
+                  : "text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100"
+              }`}
+              aria-label={chatOpen ? "Close chat" : "Chat with KB"}
+              aria-pressed={chatOpen}
             >
               <MessageSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">Ask KB</span>
+              <span className="hidden sm:inline">
+                {chatOpen ? "Close chat" : "Ask KB"}
+              </span>
             </button>
             
             <button
@@ -187,7 +194,7 @@ function AppInner() {
         <aside
           className={`
             shrink-0 border-r border-gray-200 bg-white overflow-y-auto transition-all duration-200
-            ${sidebarOpen ? "w-[420px]" : "w-0 overflow-hidden border-r-0"}
+            ${sidebarOpen && !chatOpen ? "w-[420px]" : "w-0 overflow-hidden border-r-0"}
           `}
         >
           <div className="p-4 w-[420px]">
@@ -196,73 +203,77 @@ function AppInner() {
         </aside>
 
         <main className="flex-1 min-w-0 p-6 sm:p-8 overflow-y-auto">
-          {error && (
-            <div
-              className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm flex items-start gap-2"
-              role="alert"
-            >
-              <span className="font-medium">Error:</span> {error}
+          {chatOpen ? (
+            <div className="h-[calc(100vh-7rem)] min-h-[620px]">
+              <ChatPanel onClose={() => setChatOpen(false)} />
             </div>
-          )}
-
-          {phase === "upload" && (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Compare a document
-                </h2>
-                <p className="text-gray-500 max-w-md">
-                  Upload a BRD or user story PDF to find similar documents in the
-                  knowledge base and view a side-by-side comparison.
-                </p>
-              </div>
-              <PdfUpload onUpload={handleUpload} />
-            </div>
-          )}
-
-          {phase === "comparing" && (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
-              <PdfUpload
-                onUpload={handleUpload}
-                isLoading
-                status={compareStatus}
-              />
-            </div>
-          )}
-
-          {phase === "results" && comparisonResult && uploadedDocument && (
-            <div className="space-y-8">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 pb-4 border-b border-gray-200">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-blue-600" />
-                  <span className="text-sm font-medium text-gray-800">
-                    {uploadedDocument.filename}
-                  </span>
-                </div>
-                {matches.length > 0 && (
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
-                    {matches.length} matching{" "}
-                    {matches.length === 1 ? "document" : "documents"} found
-                  </span>
-                )}
-              </div>
-              
-              {comparisonResult.gapAnalysisJson ? (
-                <GapAnalysisDashboard data={comparisonResult.gapAnalysisJson} />
-              ) : (
-                <div className="p-12 text-center text-gray-500 bg-white rounded-xl border border-gray-200 shadow-sm">
-                  Loading gap analysis or no matching documents found...
+          ) : (
+            <>
+              {error && (
+                <div
+                  className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm flex items-start gap-2"
+                  role="alert"
+                >
+                  <span className="font-medium">Error:</span> {error}
                 </div>
               )}
-            </div>
+
+              {phase === "upload" && (
+                <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
+                  <div className="text-center space-y-2">
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      Compare a document
+                    </h2>
+                    <p className="text-gray-500 max-w-md">
+                      Upload a BRD or user story PDF to find similar documents in
+                      the knowledge base and view a side-by-side comparison.
+                    </p>
+                  </div>
+                  <PdfUpload onUpload={handleUpload} />
+                </div>
+              )}
+
+              {phase === "comparing" && (
+                <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
+                  <PdfUpload
+                    onUpload={handleUpload}
+                    isLoading
+                    status={compareStatus}
+                  />
+                </div>
+              )}
+
+              {phase === "results" && comparisonResult && uploadedDocument && (
+                <div className="space-y-8">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 pb-4 border-b border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span className="text-sm font-medium text-gray-800">
+                        {uploadedDocument.filename}
+                      </span>
+                    </div>
+                    {matches.length > 0 && (
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                        {matches.length} matching{" "}
+                        {matches.length === 1 ? "document" : "documents"} found
+                      </span>
+                    )}
+                  </div>
+
+                  {comparisonResult.gapAnalysisJson ? (
+                    <GapAnalysisDashboard
+                      data={comparisonResult.gapAnalysisJson}
+                    />
+                  ) : (
+                    <div className="p-12 text-center text-gray-500 bg-white rounded-xl border border-gray-200 shadow-sm">
+                      Loading gap analysis or no matching documents found...
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </main>
-        
-        {chatOpen && (
-          <aside className="w-[380px] shrink-0 border-l border-gray-200 bg-white overflow-hidden p-4">
-            <ChatPanel onClose={() => setChatOpen(false)} />
-          </aside>
-        )}
       </div>
       
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
