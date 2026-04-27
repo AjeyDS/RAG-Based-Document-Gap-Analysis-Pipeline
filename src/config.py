@@ -11,10 +11,20 @@ class Config(BaseSettings):
     pg_pool_min: int = 1
     pg_pool_max: int = 10
 
-    # LLM
+    # LLM (legacy globals = defaults when per-use-case fields are unset)
     llm_provider: str = "openai"
     llm_model: str = "gpt-4o"
+    llm_base_url: str | None = None
+    # Per-use-case overrides (None = inherit from llm_model / llm_base_url above)
+    llm_ingestion_model: str | None = None
+    llm_ingestion_base_url: str | None = None
+    llm_comparison_model: str | None = None
+    llm_comparison_base_url: str | None = None
+    llm_chat_model: str | None = None
+    llm_chat_base_url: str | None = None
     llm_max_tokens: int = 16384
+    llm_temperature: float = 0.0
+    llm_seed: int = 42
     openai_api_key: str
 
     # Embeddings

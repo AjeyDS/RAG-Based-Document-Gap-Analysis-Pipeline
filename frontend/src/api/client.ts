@@ -67,6 +67,76 @@ export async function getMe() {
   return response.json();
 }
 
+export type LlmUseCaseTarget = "ingestion" | "comparison" | "chat";
+
+export type LlmSettingsPayload = {
+  llm_provider?: string;
+  llm_model?: string;
+  llm_base_url?: string | null;
+  llm_ingestion_model?: string | null;
+  llm_ingestion_base_url?: string | null;
+  llm_comparison_model?: string | null;
+  llm_comparison_base_url?: string | null;
+  llm_chat_model?: string | null;
+  llm_chat_base_url?: string | null;
+};
+
+export async function getSettings(): Promise<LlmSettingsPayload> {
+  if (USE_MOCK) {
+    return {
+      llm_provider: "openai",
+      llm_model: "gpt-4o",
+      llm_base_url: null,
+      llm_ingestion_model: null,
+      llm_ingestion_base_url: null,
+      llm_comparison_model: null,
+      llm_comparison_base_url: null,
+      llm_chat_model: null,
+      llm_chat_base_url: null,
+    };
+  }
+  const response = await authFetch(`${API_BASE}/api/settings/`);
+  if (!response.ok) throw new Error("Failed to fetch settings");
+  return response.json();
+}
+
+export async function updateSettings(settings: LlmSettingsPayload) {
+  if (USE_MOCK) {
+    await mockDelay(300);
+    return { status: "success", settings: { ...settings } };
+  }
+  const response = await authFetch(`${API_BASE}/api/settings/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!response.ok) throw new Error("Failed to update settings");
+  return response.json();
+}
+
+export type LlmPingResult = {
+  ok: boolean;
+  latency_ms?: number;
+  detail?: string;
+  error?: string;
+  model?: string;
+  base_url?: string | null;
+};
+
+export async function pingLlmSettings(target: LlmUseCaseTarget): Promise<LlmPingResult> {
+  if (USE_MOCK) {
+    await mockDelay(400);
+    return { ok: true, latency_ms: 42, detail: "Mock: endpoint reachable", model: "gpt-4o", base_url: null };
+  }
+  const response = await authFetch(`${API_BASE}/api/settings/ping`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target }),
+  });
+  if (!response.ok) throw new Error("Ping failed");
+  return response.json();
+}
+
 async function extractTextFromPdf(_file: File): Promise<string> {
   await mockDelay(300);
   return `# Sample BRD / User Story Document
