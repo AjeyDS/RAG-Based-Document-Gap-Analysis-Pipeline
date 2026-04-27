@@ -24,12 +24,21 @@ def get_vector_store() -> VectorStore:
     provider = create_embedding_provider(s)
     return VectorStore(embedding_provider=provider, settings=s)
 
-def get_llm() -> LLMProvider:
-    s = get_settings()
-    return create_llm(s)
+def get_llm_ingestion() -> LLMProvider:
+    return create_llm(get_settings(), "ingestion")
+
+
+def get_llm_comparison() -> LLMProvider:
+    return create_llm(get_settings(), "comparison")
+
+
+def get_llm_chat() -> LLMProvider:
+    return create_llm(get_settings(), "chat")
+
+
 def get_pipeline() -> IngestionPipeline:
     vs = get_vector_store()
-    llm = get_llm()
+    llm = get_llm_ingestion()
     extractor = LLMExtractor(
         llm_provider=llm,
         prompt_name=INGESTION_PROMPT,

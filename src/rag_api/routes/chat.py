@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from src.rag_api.dependencies import get_current_user, get_vector_store, get_llm
+from src.rag_api.dependencies import get_current_user, get_vector_store, get_llm_chat
 from src.rag_ingest.store import VectorStore
 from src.rag_ingest.prompts.chat_prompt import CHAT_PROMPT
 from src.rag_ingest.exceptions import LLMExtractionError
@@ -26,7 +26,7 @@ def chat_with_kb(
     req: ChatRequest,
     current_user: dict = Depends(get_current_user),
     vs: VectorStore = Depends(get_vector_store),
-    llm=Depends(get_llm),
+    llm=Depends(get_llm_chat),
 ) -> dict:
     """Query the knowledge base conversationally and return an answer with source citations."""
     logger.info(
@@ -92,7 +92,7 @@ def chat_with_kb(
         else:
             # complete() returns raw text; ask for JSON so we can extract a clean answer string
             j_prompt = formatted_prompt + "\n\nProvide your response as a valid JSON object with a single key 'answer'."
-            raw_answer = llm.complete(j_prompt, "Please return JSON with the answer.")
+            raw_answer = llm.complete(j_prompt, "Please return JSON with the answer.", temperature=0.4)
             try:
                 answer = json.loads(raw_answer).get("answer", raw_answer)
             except json.JSONDecodeError:

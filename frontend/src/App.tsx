@@ -9,6 +9,7 @@ import GapAnalysisDashboard from "./components/GapAnalysisDashboard";
 import { KnowledgeBaseManager } from "./components/KnowledgeBaseManager";
 import { PdfUpload } from "./components/PdfUpload";
 import { ChatPanel } from "./components/ChatPanel";
+import { SettingsModal } from "./components/SettingsModal";
 import {
   FileText,
   RotateCcw,
@@ -16,6 +17,7 @@ import {
   PanelLeftOpen,
   LogOut,
   MessageSquare,
+  Settings,
 } from "lucide-react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Login } from "./components/Login";
@@ -32,6 +34,7 @@ function AppInner() {
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [compareStatus, setCompareStatus] = useState("Docling (Parsing PDF)");
 
   const { isAuthenticated, isLoading, user, logout } = useAuth();
@@ -156,6 +159,16 @@ function AppInner() {
               <MessageSquare className="w-4 h-4" />
               <span className="hidden sm:inline">Ask KB</span>
             </button>
+            
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+              aria-label="Settings"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
 
             <button
               type="button"
@@ -251,6 +264,8 @@ function AppInner() {
           </aside>
         )}
       </div>
+      
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

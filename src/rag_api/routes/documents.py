@@ -12,7 +12,7 @@ import logging
 from fastapi import APIRouter, File, HTTPException, UploadFile, Depends, Request
 from pydantic import BaseModel
 
-from src.rag_api.dependencies import get_vector_store, get_settings, get_pipeline, get_llm, get_current_user
+from src.rag_api.dependencies import get_vector_store, get_settings, get_pipeline, get_llm_comparison, get_current_user
 from src.rag_ingest.store import VectorStore
 from src.rag_ingest.pipeline import IngestionPipeline
 
@@ -177,7 +177,7 @@ def compare_documents(
     request: Request,
     req: CompareRequest,
     settings=Depends(get_settings),
-    llm=Depends(get_llm),
+    llm=Depends(get_llm_comparison),
     user: dict = Depends(get_current_user)
 ):
     logger.info("Handling request", extra={"path": request.url.path, "method": request.method})

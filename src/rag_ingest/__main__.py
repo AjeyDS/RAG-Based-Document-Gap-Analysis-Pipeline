@@ -117,7 +117,7 @@ def main() -> int:
 
     if args.command == "chunk":
         from .extractor import LLMExtractor
-        llm = create_llm(settings)
+        llm = create_llm(settings, "ingestion")
         extractor = LLMExtractor(llm_provider=llm, prompt_name=args.prompt)
         pipeline = IngestionPipeline(ingestor=Ingestor(), extractor=extractor)
         all_chunks = pipeline.run_partial(args.path, through="chunk")
@@ -133,7 +133,7 @@ def main() -> int:
 
     if args.command == "store":
         from .extractor import LLMExtractor
-        llm = create_llm(settings)
+        llm = create_llm(settings, "ingestion")
         embed_provider = create_embedding_provider(settings)
         extractor = LLMExtractor(llm_provider=llm, prompt_name=args.prompt)
         vs = VectorStore(embedding_provider=embed_provider, settings=settings)
