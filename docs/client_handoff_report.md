@@ -1,5 +1,6 @@
 ---
-title: "DocCompare - Client Handoff Report"
+
+## title: "DocCompare - Client Handoff Report"
 subtitle: "Document Knowledge Base, RAG Chat, and Acceptance Criteria Gap Analysis"
 author: "Prepared for Client Handoff"
 date: "April 27, 2026"
@@ -7,7 +8,6 @@ geometry: margin=0.8in
 fontsize: 10pt
 toc: true
 toc-depth: 3
----
 
 \newpage
 
@@ -185,31 +185,35 @@ This keeps source-of-truth knowledge base changes controlled while still allowin
 
 The application is organized into three primary runtime services:
 
-| Service | Technology | Purpose |
-|---|---|---|
-| Frontend | React, Vite, Nginx | User interface for login, KB management, comparison, chat, and settings |
-| Backend API | Python, FastAPI | Application API, ingestion orchestration, comparison, chat, settings, authentication |
-| Database | PostgreSQL 16 with pgvector | Stores users, sessions, document chunks, metadata, and embeddings |
+
+| Service     | Technology                  | Purpose                                                                              |
+| ----------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| Frontend    | React, Vite, Nginx          | User interface for login, KB management, comparison, chat, and settings              |
+| Backend API | Python, FastAPI             | Application API, ingestion orchestration, comparison, chat, settings, authentication |
+| Database    | PostgreSQL 16 with pgvector | Stores users, sessions, document chunks, metadata, and embeddings                    |
+
 
 The codebase is organized around the same separation:
 
-| Area | Path | Description |
-|---|---|---|
-| Backend routes | `src/rag_api/routes/` | FastAPI route handlers |
-| Backend dependencies | `src/rag_api/dependencies.py` | Shared dependency wiring for settings, vector store, LLMs, auth |
-| Ingestion pipeline | `src/rag_ingest/pipeline.py` | Orchestrates parse, extract, chunk, embed, store |
-| Document parser | `src/rag_ingest/ingest.py` | Uses Docling to convert supported documents to markdown/text |
-| LLM extractor | `src/rag_ingest/extractor.py` | Sends parsed document text to LLM and validates structured JSON |
-| Chunking | `src/rag_ingest/chunking.py` | Creates story chunks and acceptance criteria chunks |
-| Vector store | `src/rag_ingest/store.py` | PostgreSQL/pgvector storage and retrieval layer |
-| LLM provider | `src/rag_ingest/llm/openai_provider.py` | OpenAI-compatible chat and embedding calls |
-| Frontend app | `frontend/src/` | React UI components and API client |
+
+| Area                 | Path                                    | Description                                                     |
+| -------------------- | --------------------------------------- | --------------------------------------------------------------- |
+| Backend routes       | `src/rag_api/routes/`                   | FastAPI route handlers                                          |
+| Backend dependencies | `src/rag_api/dependencies.py`           | Shared dependency wiring for settings, vector store, LLMs, auth |
+| Ingestion pipeline   | `src/rag_ingest/pipeline.py`            | Orchestrates parse, extract, chunk, embed, store                |
+| Document parser      | `src/rag_ingest/ingest.py`              | Uses Docling to convert supported documents to markdown/text    |
+| LLM extractor        | `src/rag_ingest/extractor.py`           | Sends parsed document text to LLM and validates structured JSON |
+| Chunking             | `src/rag_ingest/chunking.py`            | Creates story chunks and acceptance criteria chunks             |
+| Vector store         | `src/rag_ingest/store.py`               | PostgreSQL/pgvector storage and retrieval layer                 |
+| LLM provider         | `src/rag_ingest/llm/openai_provider.py` | OpenAI-compatible chat and embedding calls                      |
+| Frontend app         | `frontend/src/`                         | React UI components and API client                              |
+
 
 ## System Architecture Diagram
 
 The diagram below summarizes the end-to-end system architecture, including the React frontend, role-based access, document parsing, chunking, embedding, PostgreSQL storage, retrieval, LLM analysis, and gap report output.
 
-![DocCompare system architecture](docs/assets/doccompare_architecture_slide.png){width=100%}
+DocCompare system architecture{width=100%}
 
 ## Architecture Flow
 
@@ -219,18 +223,20 @@ The architecture follows this flow:
 
 This is consistent with the application implementation, with the following implementation-specific details:
 
-| Architecture Area | Implementation Detail |
-|---|---|
-| React/Vite | Frontend is implemented in `frontend/src` and served by Nginx in Docker |
-| Admin/User role | Backend session authentication supports `admin` and `user` roles |
-| PDF/DOCX upload | Knowledge base and comparison upload flows support business document ingestion |
-| Document Parser | Docling converts supported files into text/markdown |
-| Chunking | The backend creates story chunks and acceptance criteria chunks from LLM-extracted JSON |
-| Embedding | OpenAI text embeddings are generated for stored chunks |
-| PostgreSQL | PostgreSQL with pgvector stores chunks, embeddings, users, and sessions |
-| Retrieval | Vector similarity search retrieves related story and criteria chunks |
-| GPT-4o | GPT/OpenAI-compatible LLM calls are used for extraction, comparison, and chat |
-| Gap Report | The frontend renders acceptance criteria-level verdicts and summary metrics |
+
+| Architecture Area | Implementation Detail                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| React/Vite        | Frontend is implemented in `frontend/src` and served by Nginx in Docker                 |
+| Admin/User role   | Backend session authentication supports `admin` and `user` roles                        |
+| PDF/DOCX upload   | Knowledge base and comparison upload flows support business document ingestion          |
+| Document Parser   | Docling converts supported files into text/markdown                                     |
+| Chunking          | The backend creates story chunks and acceptance criteria chunks from LLM-extracted JSON |
+| Embedding         | OpenAI text embeddings are generated for stored chunks                                  |
+| PostgreSQL        | PostgreSQL with pgvector stores chunks, embeddings, users, and sessions                 |
+| Retrieval         | Vector similarity search retrieves related story and criteria chunks                    |
+| GPT-4o            | GPT/OpenAI-compatible LLM calls are used for extraction, comparison, and chat           |
+| Gap Report        | The frontend renders acceptance criteria-level verdicts and summary metrics             |
+
 
 GPT or another configured OpenAI-compatible model performs semantic extraction and gap-analysis reasoning. The embedding step uses the configured embedding model, currently `text-embedding-3-small` by default. The chunking step is deterministic application logic over the LLM-extracted JSON, not a separate model training process.
 
@@ -272,10 +278,12 @@ This status tracking helps users understand where the file is in the ingestion l
 
 The system intentionally separates content into two chunk types:
 
-| Chunk Type | Purpose |
-|---|---|
-| Story chunk | Used for semantic matching between new stories and existing knowledge base stories |
-| Criteria chunk | Used for detailed comparison of acceptance criteria under matched stories |
+
+| Chunk Type     | Purpose                                                                            |
+| -------------- | ---------------------------------------------------------------------------------- |
+| Story chunk    | Used for semantic matching between new stories and existing knowledge base stories |
+| Criteria chunk | Used for detailed comparison of acceptance criteria under matched stories          |
+
 
 This design improves retrieval quality. The application first finds semantically similar stories, then retrieves the associated acceptance criteria for detailed gap analysis.
 
@@ -331,13 +339,15 @@ Source visibility is important for client confidence. Users can inspect which do
 
 Default development credentials seeded by the app are:
 
-| Username | Password | Role |
-|---|---|---|
+
+| Username | Password     | Role  |
+| -------- | ------------ | ----- |
 | `admin1` | `admin1pass` | admin |
 | `admin2` | `admin2pass` | admin |
 | `trial1` | `trial1pass` | admin |
-| `user1` | `user1pass` | user |
-| `user2` | `user2pass` | user |
+| `user1`  | `user1pass`  | user  |
+| `user2`  | `user2pass`  | user  |
+
 
 Important: these credentials are for local development/demo use only and should be changed before production use.
 
@@ -371,25 +381,27 @@ Only admin users see the delete control.
 
 The dashboard should be read as follows:
 
-| Dashboard Area | Meaning |
-|---|---|
-| Total ACs | Total acceptance criteria identified in the new document |
-| Covered | New criteria already satisfied by existing KB criteria |
-| Partial | Related coverage exists, but details differ or are incomplete |
-| Gaps | Missing requirements that likely need action |
-| Good to have | Useful additions that may not be critical |
-| Coverage percentage | Covered plus partial items divided by total new criteria |
-| Key gaps | Most important missing items |
-| Recommended additions | Valuable enhancements suggested by the comparison |
-| Overall recommendation | Narrative summary for delivery or analysis teams |
+
+| Dashboard Area         | Meaning                                                       |
+| ---------------------- | ------------------------------------------------------------- |
+| Total ACs              | Total acceptance criteria identified in the new document      |
+| Covered                | New criteria already satisfied by existing KB criteria        |
+| Partial                | Related coverage exists, but details differ or are incomplete |
+| Gaps                   | Missing requirements that likely need action                  |
+| Good to have           | Useful additions that may not be critical                     |
+| Coverage percentage    | Covered plus partial items divided by total new criteria      |
+| Key gaps               | Most important missing items                                  |
+| Recommended additions  | Valuable enhancements suggested by the comparison             |
+| Overall recommendation | Narrative summary for delivery or analysis teams              |
+
 
 Users can filter by verdict to focus on gaps, partials, or covered items.
 
-![Gap analysis dashboard showing coverage, key gaps, and recommendation](docs/assets/gap_analysis_dashboard.png){width=100%}
+Gap analysis dashboard showing coverage, key gaps, and recommendation{width=100%}
 
 The detailed view expands each user story and shows the acceptance criteria-level reasoning behind each verdict, including the matched knowledge base criterion and the model's explanation.
 
-![Acceptance criteria-level gap analysis detail](docs/assets/gap_analysis_detail.png){width=100%}
+Acceptance criteria-level gap analysis detail{width=100%}
 
 ## User: Chat with the Knowledge Base
 
@@ -420,9 +432,9 @@ The settings UI supports:
 - Chat model and base URL.
 - Connection test for each use case.
 
-![LLM settings for default and ingestion model configuration](docs/assets/llm_settings_defaults.png){width=80%}
+LLM settings for default and ingestion model configuration{width=80%}
 
-![LLM settings for comparison and chat model configuration](docs/assets/llm_settings_feature_models.png){width=80%}
+LLM settings for comparison and chat model configuration{width=80%}
 
 Recommended production setup:
 
@@ -463,31 +475,33 @@ Then update the required values:
 
 ## Important Environment Variables
 
-| Variable | Required | Default | Description |
-|---|---:|---|---|
-| `OPENAI_API_KEY` | Yes | none | API key used for OpenAI-compatible LLM and embedding calls |
-| `PG_HOST` | No | `localhost` | Database host; use `db` inside Docker backend container |
-| `PG_PORT` | No | `5432` | Database port; Docker exposes local Postgres at `5433` |
-| `PG_DATABASE` | No | `rag_gap` | PostgreSQL database name |
-| `PG_USER` | No | `postgres` | PostgreSQL username |
-| `PG_PASSWORD` | Yes | none | PostgreSQL password |
-| `PG_POOL_MIN` | No | `1` | Minimum database connection pool size |
-| `PG_POOL_MAX` | No | `10` | Maximum database connection pool size |
-| `LLM_PROVIDER` | No | `openai` | LLM provider name; current implementation supports OpenAI-compatible provider |
-| `LLM_MODEL` | No | `gpt-4o` | Default LLM model |
-| `LLM_MAX_TOKENS` | No | `16384` | Maximum output tokens for LLM calls |
-| `EMBEDDING_PROVIDER` | No | `openai` | Embedding provider |
-| `EMBEDDING_MODEL` | No | `text-embedding-3-small` | Embedding model |
-| `EMBEDDING_DIMENSIONS` | No | `1536` | Vector dimension stored in pgvector |
-| `EMBEDDING_BATCH_SIZE` | No | `100` | Embedding batch size |
-| `IVFFLAT_LISTS` | No | `100` | pgvector IVFFlat index list count |
-| `SEARCH_TOP_K` | No | `5` | Number of top search results |
-| `MAX_RETRIES` | No | `3` | Retry attempts for external API calls |
-| `RETRY_BACKOFF_MULTIPLIER` | No | `1.0` | Retry backoff multiplier |
-| `RETRY_MAX_WAIT` | No | `30` | Maximum retry wait in seconds |
-| `DATA_DIR` | No | `data` | Application data directory |
-| `UPLOAD_DIR` | No | `data/uploads/kb` | Knowledge base upload directory |
-| `METADATA_FILE` | No | `data/kb_metadata.json` | Metadata JSON path |
+
+| Variable                   | Required | Default                  | Description                                                                   |
+| -------------------------- | -------- | ------------------------ | ----------------------------------------------------------------------------- |
+| `OPENAI_API_KEY`           | Yes      | none                     | API key used for OpenAI-compatible LLM and embedding calls                    |
+| `PG_HOST`                  | No       | `localhost`              | Database host; use `db` inside Docker backend container                       |
+| `PG_PORT`                  | No       | `5432`                   | Database port; Docker exposes local Postgres at `5433`                        |
+| `PG_DATABASE`              | No       | `rag_gap`                | PostgreSQL database name                                                      |
+| `PG_USER`                  | No       | `postgres`               | PostgreSQL username                                                           |
+| `PG_PASSWORD`              | Yes      | none                     | PostgreSQL password                                                           |
+| `PG_POOL_MIN`              | No       | `1`                      | Minimum database connection pool size                                         |
+| `PG_POOL_MAX`              | No       | `10`                     | Maximum database connection pool size                                         |
+| `LLM_PROVIDER`             | No       | `openai`                 | LLM provider name; current implementation supports OpenAI-compatible provider |
+| `LLM_MODEL`                | No       | `gpt-4o`                 | Default LLM model                                                             |
+| `LLM_MAX_TOKENS`           | No       | `16384`                  | Maximum output tokens for LLM calls                                           |
+| `EMBEDDING_PROVIDER`       | No       | `openai`                 | Embedding provider                                                            |
+| `EMBEDDING_MODEL`          | No       | `text-embedding-3-small` | Embedding model                                                               |
+| `EMBEDDING_DIMENSIONS`     | No       | `1536`                   | Vector dimension stored in pgvector                                           |
+| `EMBEDDING_BATCH_SIZE`     | No       | `100`                    | Embedding batch size                                                          |
+| `IVFFLAT_LISTS`            | No       | `100`                    | pgvector IVFFlat index list count                                             |
+| `SEARCH_TOP_K`             | No       | `5`                      | Number of top search results                                                  |
+| `MAX_RETRIES`              | No       | `3`                      | Retry attempts for external API calls                                         |
+| `RETRY_BACKOFF_MULTIPLIER` | No       | `1.0`                    | Retry backoff multiplier                                                      |
+| `RETRY_MAX_WAIT`           | No       | `30`                     | Maximum retry wait in seconds                                                 |
+| `DATA_DIR`                 | No       | `data`                   | Application data directory                                                    |
+| `UPLOAD_DIR`               | No       | `data/uploads/kb`        | Knowledge base upload directory                                               |
+| `METADATA_FILE`            | No       | `data/kb_metadata.json`  | Metadata JSON path                                                            |
+
 
 ## Docker Configuration Notes
 
@@ -668,20 +682,22 @@ The Vite development server uses port `5173` and proxies `/api` requests to:
 
 # API Summary
 
-| Method | Endpoint | Purpose | Auth |
-|---|---|---|---|
-| `POST` | `/api/auth/login` | Authenticate and receive session token | No |
-| `POST` | `/api/auth/logout` | Revoke session | Yes |
-| `GET` | `/api/auth/me` | Return current user profile | Yes |
-| `GET` | `/api/knowledge-base` | List KB files | Yes |
-| `POST` | `/api/knowledge-base/upload` | Upload and ingest KB files | Admin |
-| `DELETE` | `/api/knowledge-base/{file_id}` | Delete KB file and chunks | Admin |
-| `POST` | `/api/documents/upload` | Parse new document and retrieve matches | Yes |
-| `POST` | `/api/documents/compare` | Generate structured gap analysis | Yes |
-| `POST` | `/api/chat` | Ask KB chat question | Yes |
-| `GET` | `/api/settings/` | Read LLM settings | Yes |
-| `POST` | `/api/settings/` | Update runtime LLM settings | Yes |
-| `POST` | `/api/settings/ping` | Test selected LLM endpoint | Yes |
+
+| Method   | Endpoint                        | Purpose                                 | Auth  |
+| -------- | ------------------------------- | --------------------------------------- | ----- |
+| `POST`   | `/api/auth/login`               | Authenticate and receive session token  | No    |
+| `POST`   | `/api/auth/logout`              | Revoke session                          | Yes   |
+| `GET`    | `/api/auth/me`                  | Return current user profile             | Yes   |
+| `GET`    | `/api/knowledge-base`           | List KB files                           | Yes   |
+| `POST`   | `/api/knowledge-base/upload`    | Upload and ingest KB files              | Admin |
+| `DELETE` | `/api/knowledge-base/{file_id}` | Delete KB file and chunks               | Admin |
+| `POST`   | `/api/documents/upload`         | Parse new document and retrieve matches | Yes   |
+| `POST`   | `/api/documents/compare`        | Generate structured gap analysis        | Yes   |
+| `POST`   | `/api/chat`                     | Ask KB chat question                    | Yes   |
+| `GET`    | `/api/settings/`                | Read LLM settings                       | Yes   |
+| `POST`   | `/api/settings/`                | Update runtime LLM settings             | Yes   |
+| `POST`   | `/api/settings/ping`            | Test selected LLM endpoint              | Yes   |
+
 
 # Data Model
 
@@ -689,41 +705,47 @@ The Vite development server uses port `5173` and proxies `/api` requests to:
 
 Stores the RAG knowledge base chunks.
 
-| Column | Type | Description |
-|---|---|---|
-| `id` | serial | Internal primary key |
-| `chunk_id` | text | Unique chunk identifier |
-| `chunk_type` | text | `story` or `criteria` |
-| `content` | text | Chunk text |
-| `embedding` | vector | pgvector embedding |
-| `story_id` | text | Link between criteria and parent story |
-| `metadata` | jsonb | Story, AC, and document metadata |
-| `source_path` | text | Source document identifier/path |
+
+| Column        | Type   | Description                            |
+| ------------- | ------ | -------------------------------------- |
+| `id`          | serial | Internal primary key                   |
+| `chunk_id`    | text   | Unique chunk identifier                |
+| `chunk_type`  | text   | `story` or `criteria`                  |
+| `content`     | text   | Chunk text                             |
+| `embedding`   | vector | pgvector embedding                     |
+| `story_id`    | text   | Link between criteria and parent story |
+| `metadata`    | jsonb  | Story, AC, and document metadata       |
+| `source_path` | text   | Source document identifier/path        |
+
 
 ## `users`
 
 Stores application users.
 
-| Column | Type | Description |
-|---|---|---|
-| `id` | serial | Internal primary key |
-| `user_id` | text | Business/application user ID |
-| `username` | text | Login username |
-| `password_hash` | text | bcrypt password hash |
-| `role` | text | `admin` or `user` |
-| `created_at` | timestamp | Created timestamp |
+
+| Column          | Type      | Description                  |
+| --------------- | --------- | ---------------------------- |
+| `id`            | serial    | Internal primary key         |
+| `user_id`       | text      | Business/application user ID |
+| `username`      | text      | Login username               |
+| `password_hash` | text      | bcrypt password hash         |
+| `role`          | text      | `admin` or `user`            |
+| `created_at`    | timestamp | Created timestamp            |
+
 
 ## `sessions`
 
 Stores active login sessions.
 
-| Column | Type | Description |
-|---|---|---|
-| `id` | serial | Internal primary key |
-| `token` | text | Session token |
-| `user_id` | text | Linked user ID |
-| `created_at` | timestamp | Session creation timestamp |
+
+| Column       | Type      | Description                  |
+| ------------ | --------- | ---------------------------- |
+| `id`         | serial    | Internal primary key         |
+| `token`      | text      | Session token                |
+| `user_id`    | text      | Linked user ID               |
+| `created_at` | timestamp | Session creation timestamp   |
 | `expires_at` | timestamp | Session expiration timestamp |
+
 
 Sessions currently expire after 24 hours.
 
@@ -868,16 +890,18 @@ The application is already functional for the primary workflow. The same RAG arc
 
 The same ingestion, retrieval, and comparison pattern can be adapted to new document categories by changing the extraction prompt, metadata schema, verdict definitions, and frontend report labels.
 
-| Expansion Area | Enhancement Idea |
-|---|---|
-| Contract review | Add clause extraction, clause-risk scoring, obligation mapping, and deviation reporting against standard templates |
-| Policy and SOP impact | Compare new policies against existing SOPs and identify departments, procedures, or controls that require updates |
-| Regulatory compliance | Map requirements against regulations such as HIPAA, HL7 FHIR, SOX, ISO, or internal compliance controls |
-| Vendor/RFP evaluation | Compare vendor proposals against requirement baselines and generate objective compliance scores |
-| Multi-domain prompt packs | Create selectable prompt packs for software requirements, contracts, SOPs, compliance, and procurement |
-| Weighted scoring | Add severity, priority, risk, or business-value weighting to gap reports |
-| Portfolio-level reporting | Summarize gaps across many uploaded documents, vendors, departments, or projects |
-| Client-branded exports | Export final reports as PDF, Word, or PowerPoint using client templates |
+
+| Expansion Area            | Enhancement Idea                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Contract review           | Add clause extraction, clause-risk scoring, obligation mapping, and deviation reporting against standard templates |
+| Policy and SOP impact     | Compare new policies against existing SOPs and identify departments, procedures, or controls that require updates  |
+| Regulatory compliance     | Map requirements against regulations such as HIPAA, HL7 FHIR, SOX, ISO, or internal compliance controls            |
+| Vendor/RFP evaluation     | Compare vendor proposals against requirement baselines and generate objective compliance scores                    |
+| Multi-domain prompt packs | Create selectable prompt packs for software requirements, contracts, SOPs, compliance, and procurement             |
+| Weighted scoring          | Add severity, priority, risk, or business-value weighting to gap reports                                           |
+| Portfolio-level reporting | Summarize gaps across many uploaded documents, vendors, departments, or projects                                   |
+| Client-branded exports    | Export final reports as PDF, Word, or PowerPoint using client templates                                            |
+
 
 # Conclusion
 
